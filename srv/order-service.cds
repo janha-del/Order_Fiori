@@ -18,26 +18,38 @@ service OrderWorkbenchService {
             ShipCity,
             ShipRegion,
             ShipPostalCode,
-            ShipCountry
+            ShipCountry,
 
-            virtual ShippingStatus : String(20)
+            virtual ShippingStatus : String(20),
+            virtual TotalQuantity  : Integer,
+            virtual NetOrderValue  : Decimal(15,2)
+
+    } actions {
+
+        action markForReview() returns String;
+
     };
 
+
     @readonly
-entity OrderDetails as projection on nw.Order_Details {
-    key OrderID,
-    key ProductID,
-        UnitPrice,
-        Quantity,
-        Discount
-};
+    entity OrderDetails as projection on nw.Order_Details {
+        key OrderID,
+        key ProductID,
+            UnitPrice,
+            Quantity,
+            Discount,
 
-@readonly
-entity Customers as projection on nw.Customers;
+            virtual LineTotal : Decimal(15,2)
+    };
 
-@readonly
-entity Employees as projection on nw.Employees;
 
-@readonly
-entity Shippers as projection on nw.Shippers;
+    @readonly
+    entity Customers as projection on nw.Customers;
+
+    @readonly
+    entity Employees as projection on nw.Employees;
+
+    @readonly
+    entity Shippers as projection on nw.Shippers;
+
 }
