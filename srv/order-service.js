@@ -13,21 +13,22 @@ module.exports = cds.service.impl(async function () {
     // =====================================================
     this.on("READ", "Orders", async function (req) {
 
-        // Copy the incoming request
+        // Copy incoming request
         var query = structuredClone(req.query);
 
 
         // -------------------------------------------------
-        // Rewrite ShippingStatus filter
+        // Rewrite ShippingStatus filters
         // -------------------------------------------------
         rewriteShippingStatusFilter(query, req);
 
 
         // -------------------------------------------------
-        // Limit Orders LIST to 100
+        // Limit Orders list to 100
         // -------------------------------------------------
         //
-        // Do not add the limit when requesting one Order:
+        // Do not apply limit for:
+        //
         // Orders(10250)
         //
         if (!query.SELECT.one && !query.SELECT.limit) {
@@ -41,15 +42,8 @@ module.exports = cds.service.impl(async function () {
 
 
         // -------------------------------------------------
-        // Remove virtual fields
+        // Remove virtual fields before calling Northwind
         // -------------------------------------------------
-        //
-        // Northwind does not contain:
-        //
-        // ShippingStatus
-        // TotalQuantity
-        // NetOrderValue
-        //
         if (query.SELECT.columns) {
 
             var newColumns = [];
@@ -67,11 +61,17 @@ module.exports = cds.service.impl(async function () {
                     var fieldName = column.ref[0];
 
 
+                    // ShippingStatus does not exist
+                    // in Northwind
                     if (fieldName === "ShippingStatus") {
 
                         shippingStatusRequested = true;
 
-                    } else if (
+                    }
+
+                    // TotalQuantity and NetOrderValue
+                    // also do not exist in Northwind
+                    else if (
                         fieldName !== "TotalQuantity" &&
                         fieldName !== "NetOrderValue"
                     ) {
@@ -86,8 +86,8 @@ module.exports = cds.service.impl(async function () {
             }
 
 
-            // ShippingStatus calculation needs
-            // ShippedDate and RequiredDate
+            // ShippingStatus calculation needs these
+            // two real Northwind fields
             if (shippingStatusRequested) {
 
                 addFieldIfMissing(
@@ -113,7 +113,7 @@ module.exports = cds.service.impl(async function () {
 
 
         // -------------------------------------------------
-        // Convert result into an array
+        // Convert result to array
         // -------------------------------------------------
         var rows;
 
@@ -128,31 +128,87 @@ module.exports = cds.service.impl(async function () {
 
 
         // -------------------------------------------------
-        // Calculate ShippingStatus
+        // Process Orders
         // -------------------------------------------------
         for (var j = 0; j < rows.length; j++) {
 
             if (rows[j]) {
 
+
+                // -----------------------------------------
+                // Shipping Status
+                // -----------------------------------------
                 rows[j].ShippingStatus =
-                    deriveShippingStatus(rows[j]);
+                    deriveShippingStatus(
+                        rows[j]
+                    );
 
 
-                // List page should not calculate totals
+                // -----------------------------------------
+                // Do not calculate totals for list page
+                // -----------------------------------------
                 rows[j].TotalQuantity = null;
 
                 rows[j].NetOrderValue = null;
+
+
+                // -----------------------------------------
+                // Calculate LineTotal when Order_Details
+                // was expanded
+                // -----------------------------------------
+                if (rows[j].Order_Details) {
+
+                    for (
+                        var k = 0;
+                        k < rows[j].Order_Details.length;
+                        k++
+                    ) {
+
+                        var item =
+                            rows[j].Order_Details[k];
+
+
+                        var price =
+                            Number(
+                                item.UnitPrice || 0
+                            );
+
+
+                        var quantity =
+                            Number(
+                                item.Quantity || 0
+                            );
+
+
+                        var discount =
+                            Number(
+                                item.Discount || 0
+                            );
+
+
+                        var lineTotal =
+                            price *
+                            quantity *
+                            (1 - discount);
+
+
+                        item.LineTotal =
+                            Number(
+                                lineTotal.toFixed(2)
+                            );
+                    }
+                }
             }
         }
 
 
         // -------------------------------------------------
-        // Calculate totals for ONE Order only
+        // Calculate totals only for ONE Order
         // -------------------------------------------------
         //
         // Example:
         //
-        // /Orders(10250)
+        // Orders(10250)
         //
         if (query.SELECT.one && rows[0]) {
 
@@ -184,136 +240,159 @@ module.exports = cds.service.impl(async function () {
     // =====================================================
     // ORDER DETAILS
     // =====================================================
-    this.on("READ", "OrderDetails", async function (req) {
+    this.on(
+        "READ",
+        "OrderDetails",
+        async function (req) {
 
-        var query =
-            structuredClone(req.query);
-
-
-        // -------------------------------------------------
-        // Remove LineTotal
-        // -------------------------------------------------
-        //
-        // Northwind does not contain LineTotal.
-        //
-        if (query.SELECT.columns) {
-
-            var newColumns = [];
-
-            var lineTotalRequested = false;
+            var query =
+                structuredClone(req.query);
 
 
-            for (var i = 0; i < query.SELECT.columns.length; i++) {
+            // ---------------------------------------------
+            // Remove virtual LineTotal before
+            // calling Northwind
+            // ---------------------------------------------
+            if (query.SELECT.columns) {
 
-                var column =
-                    query.SELECT.columns[i];
+                var newColumns = [];
+
+                var lineTotalRequested = false;
 
 
-                if (column.ref) {
+                for (
+                    var i = 0;
+                    i < query.SELECT.columns.length;
+                    i++
+                ) {
 
-                    var fieldName =
-                        column.ref[0];
+                    var column =
+                        query.SELECT.columns[i];
 
 
-                    if (fieldName === "LineTotal") {
+                    if (column.ref) {
 
-                        lineTotalRequested = true;
+                        var fieldName =
+                            column.ref[0];
+
+
+                        if (
+                            fieldName === "LineTotal"
+                        ) {
+
+                            lineTotalRequested = true;
+
+                        } else {
+
+                            newColumns.push(column);
+                        }
 
                     } else {
 
                         newColumns.push(column);
                     }
+                }
 
-                } else {
 
-                    newColumns.push(column);
+                // LineTotal requires:
+                //
+                // UnitPrice
+                // Quantity
+                // Discount
+                //
+                if (lineTotalRequested) {
+
+                    addFieldIfMissing(
+                        newColumns,
+                        "UnitPrice"
+                    );
+
+                    addFieldIfMissing(
+                        newColumns,
+                        "Quantity"
+                    );
+
+                    addFieldIfMissing(
+                        newColumns,
+                        "Discount"
+                    );
+                }
+
+
+                query.SELECT.columns =
+                    newColumns;
+            }
+
+
+            // ---------------------------------------------
+            // Call Northwind
+            // ---------------------------------------------
+            var result =
+                await northwind.run(query);
+
+
+            var rows;
+
+
+            if (Array.isArray(result)) {
+
+                rows = result;
+
+            } else {
+
+                rows = [result];
+            }
+
+
+            // ---------------------------------------------
+            // Calculate LineTotal
+            // ---------------------------------------------
+            for (
+                var j = 0;
+                j < rows.length;
+                j++
+            ) {
+
+                var row = rows[j];
+
+
+                if (row) {
+
+                    var price =
+                        Number(
+                            row.UnitPrice || 0
+                        );
+
+
+                    var quantity =
+                        Number(
+                            row.Quantity || 0
+                        );
+
+
+                    var discount =
+                        Number(
+                            row.Discount || 0
+                        );
+
+
+                    var lineTotal =
+                        price *
+                        quantity *
+                        (1 - discount);
+
+
+                    row.LineTotal =
+                        Number(
+                            lineTotal.toFixed(2)
+                        );
                 }
             }
 
 
-            // LineTotal needs these fields
-            if (lineTotalRequested) {
-
-                addFieldIfMissing(
-                    newColumns,
-                    "UnitPrice"
-                );
-
-                addFieldIfMissing(
-                    newColumns,
-                    "Quantity"
-                );
-
-                addFieldIfMissing(
-                    newColumns,
-                    "Discount"
-                );
-            }
-
-
-            query.SELECT.columns =
-                newColumns;
+            return result;
         }
-
-
-        // -------------------------------------------------
-        // Call Northwind
-        // -------------------------------------------------
-        var result =
-            await northwind.run(query);
-
-
-        var rows;
-
-        if (Array.isArray(result)) {
-
-            rows = result;
-
-        } else {
-
-            rows = [result];
-        }
-
-
-        // -------------------------------------------------
-        // Calculate LineTotal
-        // -------------------------------------------------
-        for (var j = 0; j < rows.length; j++) {
-
-            var row =
-                rows[j];
-
-
-            if (row) {
-
-                var price =
-                    Number(row.UnitPrice || 0);
-
-
-                var quantity =
-                    Number(row.Quantity || 0);
-
-
-                var discount =
-                    Number(row.Discount || 0);
-
-
-                var lineTotal =
-                    price *
-                    quantity *
-                    (1 - discount);
-
-
-                row.LineTotal =
-                    Number(
-                        lineTotal.toFixed(2)
-                    );
-            }
-        }
-
-
-        return result;
-    });
+    );
 
 
 
@@ -369,9 +448,8 @@ module.exports = cds.service.impl(async function () {
     // MARK FOR REVIEW
     // =====================================================
     //
-    // This action does NOT update Northwind.
-    //
-    // It only returns a message for Phase 1.
+    // Phase 1:
+    // No Northwind update.
     //
     this.on(
         "markForReview",
@@ -400,7 +478,7 @@ module.exports = cds.service.impl(async function () {
 
 
 // =========================================================
-// SHIPPING STATUS CALCULATION
+// DERIVE SHIPPING STATUS
 // =========================================================
 function deriveShippingStatus(order) {
 
@@ -488,22 +566,23 @@ function deriveShippingStatus(order) {
 
 
 // =========================================================
-// SHIPPING STATUS FILTER
+// REWRITE SHIPPING STATUS FILTER
 // =========================================================
-function rewriteShippingStatusFilter(query, req) {
+function rewriteShippingStatusFilter(
+    query,
+    req
+) {
 
     var where =
         query.SELECT.where;
 
 
-    // No filter
     if (!where) {
 
         return;
     }
 
 
-    // Rewrite the filter
     query.SELECT.where =
         rewriteFilterParts(
             where,
@@ -517,25 +596,36 @@ function rewriteShippingStatusFilter(query, req) {
 // REWRITE FILTER PARTS
 // =========================================================
 //
-// This allows combinations like:
+// Supports:
+//
+// ShippingStatus eq 'Overdue'
+//
+// and also:
 //
 // CustomerID eq 'ERNSH'
 // AND
 // ShippingStatus eq 'Overdue'
 //
-function rewriteFilterParts(parts, req) {
+function rewriteFilterParts(
+    parts,
+    req
+) {
 
     var newParts = [];
 
 
-    for (var i = 0; i < parts.length; i++) {
+    for (
+        var i = 0;
+        i < parts.length;
+        i++
+    ) {
 
         var part =
             parts[i];
 
 
         // -------------------------------------------------
-        // Handle filters inside parentheses
+        // Handle brackets / parentheses
         // -------------------------------------------------
         if (
             part &&
@@ -557,7 +647,7 @@ function rewriteFilterParts(parts, req) {
 
 
         // -------------------------------------------------
-        // Check for ShippingStatus
+        // Find ShippingStatus filter
         // -------------------------------------------------
         if (
             part &&
@@ -579,7 +669,9 @@ function rewriteFilterParts(parts, req) {
 
 
             newParts.push({
+
                 xpr: condition
+
             });
 
 
@@ -587,7 +679,7 @@ function rewriteFilterParts(parts, req) {
             //
             // ShippingStatus
             // =
-            // value
+            // status
             //
             i = i + 2;
 
@@ -596,7 +688,7 @@ function rewriteFilterParts(parts, req) {
         }
 
 
-        // Normal filter
+        // Keep normal filters
         newParts.push(part);
     }
 
@@ -609,7 +701,10 @@ function rewriteFilterParts(parts, req) {
 // =========================================================
 // CREATE SHIPPING STATUS CONDITION
 // =========================================================
-function createShippingStatusCondition(status, req) {
+function createShippingStatusCondition(
+    status,
+    req
+) {
 
 
     var today =
@@ -790,7 +885,7 @@ function createShippingStatusCondition(status, req) {
 
 
 // =========================================================
-// ORDER TOTAL CALCULATION
+// CALCULATE ORDER TOTALS
 // =========================================================
 async function calculateOrderTotals(
     orderID,
@@ -798,9 +893,7 @@ async function calculateOrderTotals(
 ) {
 
 
-    // -----------------------------------------------------
-    // Get OrderDetails for this Order
-    // -----------------------------------------------------
+    // Get all OrderDetails for this Order
     var items =
         await northwind.run(
 
@@ -820,10 +913,11 @@ async function calculateOrderTotals(
     var netOrderValue = 0;
 
 
-    // -----------------------------------------------------
-    // Loop through all OrderDetails
-    // -----------------------------------------------------
-    for (var i = 0; i < items.length; i++) {
+    for (
+        var i = 0;
+        i < items.length;
+        i++
+    ) {
 
 
         var price =
@@ -844,20 +938,17 @@ async function calculateOrderTotals(
             );
 
 
-        // LineTotal
         var lineTotal =
             price *
             quantity *
             (1 - discount);
 
 
-        // Total Quantity
         totalQuantity =
             totalQuantity +
             quantity;
 
 
-        // Net Order Value
         netOrderValue =
             netOrderValue +
             lineTotal;
@@ -882,17 +973,20 @@ async function calculateOrderTotals(
 // =========================================================
 // ADD FIELD IF MISSING
 // =========================================================
-//
-// Used when a calculated field requires
-// another Northwind field.
-//
-function addFieldIfMissing(columns, fieldName) {
+function addFieldIfMissing(
+    columns,
+    fieldName
+) {
 
 
     var found = false;
 
 
-    for (var i = 0; i < columns.length; i++) {
+    for (
+        var i = 0;
+        i < columns.length;
+        i++
+    ) {
 
         if (
             columns[i].ref &&

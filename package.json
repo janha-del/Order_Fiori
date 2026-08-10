@@ -20,7 +20,8 @@
     "@sap/cds-dk": "^10.0.6",
     "@sap/ux-ui5-tooling": "1",
     "@ui5/cli": "^4.0.33",
-    "eslint": "^10"
+    "eslint": "^10",
+    "cds-plugin-ui5": "^0.17.0"
   },
   "scripts": {
     "start": "fiori run --open \"test/flp.html#app-preview\"",
@@ -31,10 +32,13 @@
     "deploy": "fiori verify",
     "deploy-config": "fiori add deploy-config",
     "start-noflp": "fiori run --open \"/index.html?sap-ui-xx-viewCache=false\"",
-    "start-variants-management": "fiori run --open \"/preview.html#app-preview\""
+    "start-variants-management": "fiori run --open \"/preview.html#app-preview\"",
+    "watch-project1": "cds watch --open project1/index.html?sap-ui-xx-viewCache=false --livereload false"
   },
   "sapuxLayer": "CUSTOMER_BASE",
-  "sapux": true,
+  "sapux": [
+    "app/project1"
+  ],
   "cds": {
     "requires": {
       "Northwind": {
@@ -42,5 +46,8 @@
         "model": "srv/external/Northwind"
       }
     }
-  }
+  },
+  "workspaces": [
+    "app/*"
+  ]
 }

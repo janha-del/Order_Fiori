@@ -5,6 +5,7 @@ service OrderWorkbenchService {
 
     @readonly
     entity Orders as projection on nw.Orders {
+
         key OrderID,
             CustomerID,
             EmployeeID,
@@ -20,6 +21,11 @@ service OrderWorkbenchService {
             ShipPostalCode,
             ShipCountry,
 
+            Customer,
+            Employee,
+            Shipper,
+            Order_Details,
+
             virtual ShippingStatus : String(20),
             virtual TotalQuantity  : Integer,
             virtual NetOrderValue  : Decimal(15,2)
@@ -33,8 +39,10 @@ service OrderWorkbenchService {
 
     @readonly
     entity OrderDetails as projection on nw.Order_Details {
+
         key OrderID,
         key ProductID,
+
             UnitPrice,
             Quantity,
             Discount,
@@ -44,12 +52,17 @@ service OrderWorkbenchService {
 
 
     @readonly
-    entity Customers as projection on nw.Customers;
+    entity Customers
+        as projection on nw.Customers;
+
 
     @readonly
-    entity Employees as projection on nw.Employees;
+    entity Employees
+        as projection on nw.Employees;
+
 
     @readonly
-    entity Shippers as projection on nw.Shippers;
+    entity Shippers
+        as projection on nw.Shippers;
 
 }
