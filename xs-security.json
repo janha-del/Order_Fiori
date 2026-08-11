@@ -1,0 +1,43 @@
+{
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.ZNW_ORD_DISPLAY",
+      "description": "ZNW_ORD_DISPLAY"
+    },
+    {
+      "name": "$XSAPPNAME.ZNW_ORD_COORD",
+      "description": "ZNW_ORD_COORD"
+    },
+    {
+      "name": "$XSAPPNAME.ZNW_ORD_ANALYST",
+      "description": "ZNW_ORD_ANALYST"
+    }
+  ],
+  "attributes": [],
+  "role-templates": [
+    {
+      "name": "ZNW_ORD_DISPLAY",
+      "description": "generated",
+      "scope-references": [
+        "$XSAPPNAME.ZNW_ORD_DISPLAY"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "ZNW_ORD_COORD",
+      "description": "generated",
+      "scope-references": [
+        "$XSAPPNAME.ZNW_ORD_COORD"
+      ],
+      "attribute-references": []
+    },
+    {
+      "name": "ZNW_ORD_ANALYST",
+      "description": "generated",
+      "scope-references": [
+        "$XSAPPNAME.ZNW_ORD_ANALYST"
+      ],
+      "attribute-references": []
+    }
+  ]
+}

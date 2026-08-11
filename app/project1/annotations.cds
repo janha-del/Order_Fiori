@@ -5,20 +5,9 @@ using OrderWorkbenchService as service from '../../srv/order-service';
  * =========================================================
  * ORDERS
  * =========================================================
- *
- * This annotation controls:
- *
- * 1. List Report filters
- * 2. List Report columns
- * 3. Object Page header
- * 4. Object Page sections
- * 5. Order totals
- * 6. Order Items section
- *
  */
 
 annotate service.Orders with @(
-
 
     /*
      * =====================================================
@@ -27,17 +16,12 @@ annotate service.Orders with @(
      */
 
     UI.SelectionFields: [
-
         CustomerID,
-
         EmployeeID,
-
+        ShipVia,
         OrderDate,
-
         RequiredDate,
-
         ShippingStatus
-
     ],
 
 
@@ -85,10 +69,34 @@ annotate service.Orders with @(
             Label: 'Shipped Date'
         },
 
+        /*
+         * SHIPPING STATUS WITH SEMANTIC COLOR
+         *
+         * 3 = Positive  -> Green
+         * 1 = Negative  -> Red
+         * 2 = Critical  -> Orange
+         * 0 = Neutral
+         */
         {
             $Type: 'UI.DataField',
             Value: ShippingStatus,
-            Label: 'Shipping Status'
+            Label: 'Shipping Status',
+
+            Criticality: (
+                ShippingStatus = 'Shipped'
+                    ? 3
+                    : (
+                        ShippingStatus = 'Overdue'
+                            ? 1
+                            : (
+                                ShippingStatus = 'Due Soon'
+                                    ? 2
+                                    : 0
+                            )
+                    )
+            ),
+
+            CriticalityRepresentation: #WithIcon
         },
 
         {
@@ -155,8 +163,34 @@ annotate service.Orders with @(
 
             {
                 $Type: 'UI.DataField',
+                Value: ShipVia,
+                Label: 'Shipper'
+            },
+
+            /*
+             * SHIPPING STATUS WITH SEMANTIC COLOR
+             * ON OBJECT PAGE
+             */
+            {
+                $Type: 'UI.DataField',
                 Value: ShippingStatus,
-                Label: 'Shipping Status'
+                Label: 'Shipping Status',
+
+                Criticality: (
+                    ShippingStatus = 'Shipped'
+                        ? 3
+                        : (
+                            ShippingStatus = 'Overdue'
+                                ? 1
+                                : (
+                                    ShippingStatus = 'Due Soon'
+                                        ? 2
+                                        : 0
+                                )
+                        )
+                ),
+
+                CriticalityRepresentation: #WithIcon
             },
 
             {
@@ -181,6 +215,147 @@ annotate service.Orders with @(
                 $Type: 'UI.DataField',
                 Value: Freight,
                 Label: 'Freight'
+            }
+
+        ]
+
+    },
+
+
+    /*
+     * =====================================================
+     * CUSTOMER INFORMATION
+     * =====================================================
+     */
+
+    UI.FieldGroup #Customer: {
+
+        Data: [
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.CustomerID,
+                Label: 'Customer ID'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.CompanyName,
+                Label: 'Company Name'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.ContactName,
+                Label: 'Contact Name'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.ContactTitle,
+                Label: 'Contact Title'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.Phone,
+                Label: 'Phone'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.City,
+                Label: 'City'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Customer.Country,
+                Label: 'Country'
+            }
+
+        ]
+
+    },
+
+
+    /*
+     * =====================================================
+     * EMPLOYEE INFORMATION
+     * =====================================================
+     */
+
+    UI.FieldGroup #Employee: {
+
+        Data: [
+
+            {
+                $Type: 'UI.DataField',
+                Value: Employee.EmployeeID,
+                Label: 'Employee ID'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Employee.FirstName,
+                Label: 'First Name'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Employee.LastName,
+                Label: 'Last Name'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Employee.Title,
+                Label: 'Title'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Employee.City,
+                Label: 'City'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Employee.Country,
+                Label: 'Country'
+            }
+
+        ]
+
+    },
+
+
+    /*
+     * =====================================================
+     * SHIPPER INFORMATION
+     * =====================================================
+     */
+
+    UI.FieldGroup #Shipper: {
+
+        Data: [
+
+            {
+                $Type: 'UI.DataField',
+                Value: Shipper.ShipperID,
+                Label: 'Shipper ID'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Shipper.CompanyName,
+                Label: 'Company Name'
+            },
+
+            {
+                $Type: 'UI.DataField',
+                Value: Shipper.Phone,
+                Label: 'Phone'
             }
 
         ]
@@ -268,7 +443,7 @@ annotate service.Orders with @(
 
     /*
      * =====================================================
-     * OBJECT PAGE SECTIONS / FACETS
+     * OBJECT PAGE SECTIONS
      * =====================================================
      */
 
@@ -279,6 +454,27 @@ annotate service.Orders with @(
             ID: 'GeneralInformation',
             Label: 'General Information',
             Target: '@UI.FieldGroup#General'
+        },
+
+        {
+            $Type: 'UI.ReferenceFacet',
+            ID: 'CustomerInformation',
+            Label: 'Customer Information',
+            Target: '@UI.FieldGroup#Customer'
+        },
+
+        {
+            $Type: 'UI.ReferenceFacet',
+            ID: 'EmployeeInformation',
+            Label: 'Employee Information',
+            Target: '@UI.FieldGroup#Employee'
+        },
+
+        {
+            $Type: 'UI.ReferenceFacet',
+            ID: 'ShipperInformation',
+            Label: 'Shipper Information',
+            Target: '@UI.FieldGroup#Shipper'
         },
 
         {
@@ -310,12 +506,212 @@ annotate service.Orders with @(
 
 /*
  * =========================================================
+ * CUSTOMER / EMPLOYEE / SHIPPER VALUE HELPS
+ * =========================================================
+ */
+
+annotate service.Orders with {
+
+
+    /*
+     * =====================================================
+     * CUSTOMER VALUE HELP
+     * =====================================================
+     */
+
+    CustomerID
+        @title: 'Customer'
+        @Common: {
+
+            Text: Customer.CompanyName,
+
+            TextArrangement: #TextOnly,
+
+            ValueList: {
+
+                Label: 'Customers',
+
+                CollectionPath: 'Customers',
+
+                Parameters: [
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterInOut',
+
+                        LocalDataProperty:
+                            CustomerID,
+
+                        ValueListProperty:
+                            'CustomerID'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'CompanyName'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'ContactName'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'City'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'Country'
+                    }
+
+                ]
+
+            }
+
+        };
+
+
+    /*
+     * =====================================================
+     * EMPLOYEE VALUE HELP
+     * =====================================================
+     */
+
+    EmployeeID
+        @title: 'Employee'
+        @Common: {
+
+            Text: Employee.LastName,
+
+            TextArrangement: #TextOnly,
+
+            ValueList: {
+
+                Label: 'Employees',
+
+                CollectionPath: 'Employees',
+
+                Parameters: [
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterInOut',
+
+                        LocalDataProperty:
+                            EmployeeID,
+
+                        ValueListProperty:
+                            'EmployeeID'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'FirstName'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'LastName'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'Title'
+                    }
+
+                ]
+
+            }
+
+        };
+
+
+    /*
+     * =====================================================
+     * SHIPPER VALUE HELP
+     * =====================================================
+     */
+
+    ShipVia
+        @title: 'Shipper'
+        @Common: {
+
+            Text: Shipper.CompanyName,
+
+            TextArrangement: #TextOnly,
+
+            ValueList: {
+
+                Label: 'Shippers',
+
+                CollectionPath: 'Shippers',
+
+                Parameters: [
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterInOut',
+
+                        LocalDataProperty:
+                            ShipVia,
+
+                        ValueListProperty:
+                            'ShipperID'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'CompanyName'
+                    },
+
+                    {
+                        $Type:
+                            'Common.ValueListParameterDisplayOnly',
+
+                        ValueListProperty:
+                            'Phone'
+                    }
+
+                ]
+
+            }
+
+        };
+
+};
+
+
+
+/*
+ * =========================================================
  * ORDER DETAILS
  * =========================================================
- *
- * This becomes the Order Items table
- * inside the Order Object Page.
- *
  */
 
 annotate service.OrderDetails with @(
