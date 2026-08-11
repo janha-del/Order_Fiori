@@ -9,10 +9,11 @@
   ],
   "main": "webapp/index.html",
   "dependencies": {
-    "@sap/cds": "^10.0.5",
     "@sap-cloud-sdk/connectivity": "^4",
     "@sap-cloud-sdk/http-client": "^4",
-    "@sap-cloud-sdk/resilience": "^4"
+    "@sap-cloud-sdk/resilience": "^4",
+    "@sap/cds": "^10.0.5",
+    "@sap/xssec": "^4"
   },
   "devDependencies": {
     "@sap-ux/eslint-plugin-fiori-tools": "^10.0.0",
@@ -20,11 +21,11 @@
     "@sap/cds-dk": "^10.0.6",
     "@sap/ux-ui5-tooling": "1",
     "@ui5/cli": "^4.0.33",
-    "eslint": "^10",
-    "cds-plugin-ui5": "^0.17.0"
+    "cds-plugin-ui5": "^0.17.0",
+    "eslint": "^10"
   },
   "scripts": {
-    "start": "fiori run --open \"test/flp.html#app-preview\"",
+    "start": "cds-serve",
     "start-local": "fiori run --config ./ui5-local.yaml --open \"test/flp.html#app-preview\"",
     "build": "ui5 build --config=ui5.yaml --clean-dest --dest dist",
     "lint": "eslint ./",
@@ -41,10 +42,50 @@
   ],
   "cds": {
     "requires": {
+      "auth": {
+        "[development]": {
+          "kind": "mocked",
+          "users": {
+            "display-user": {
+              "password": "display",
+              "roles": [
+                "ZNW_ORD_DISPLAY"
+              ]
+            },
+            "coord-user": {
+              "password": "coord",
+              "roles": [
+                "ZNW_ORD_COORD"
+              ]
+            },
+            "analyst-user": {
+              "password": "analyst",
+              "roles": [
+                "ZNW_ORD_ANALYST"
+              ]
+            },
+            "no-role-user": {
+              "password": "test",
+              "roles": []
+            }
+          }
+        }
+      },
       "Northwind": {
         "kind": "odata-v2",
         "model": "srv/external/Northwind"
-      }
+      },
+      "[production]": {
+        "auth": {
+          "kind": "xsuaa"
+        },
+        "Northwind": {
+          "credentials": {
+            "destination": "NORTHWIND"
+          }
+        }
+      },
+      "html5-repo": true
     }
   },
   "workspaces": [

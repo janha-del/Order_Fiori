@@ -7,7 +7,7 @@
     "applicationVersion": {
       "version": "0.0.1"
     },
-    "title": "{{appTitle}}",
+    "title": "{{OderDetails}}",
     "description": "{{appDescription}}",
     "resources": "resources.json",
     "sourceTemplate": {
