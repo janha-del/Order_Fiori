@@ -7,4 +7,5 @@ mta_archives
 mta-*
 resources
 archive.zip
-.*_mta_build_tmpgen/
+.*_mta_build_tmp
+gen/
