@@ -51,29 +51,38 @@ module.exports = cds.service.impl(async function () {
             var shippingStatusRequested = false;
 
 
-            for (var i = 0; i < query.SELECT.columns.length; i++) {
+            for (
+                var i = 0;
+                i < query.SELECT.columns.length;
+                i++
+            ) {
 
-                var column = query.SELECT.columns[i];
+                var column =
+                    query.SELECT.columns[i];
 
 
                 if (column.ref) {
 
-                    var fieldName = column.ref[0];
+                    var fieldName =
+                        column.ref[0];
 
 
                     // ShippingStatus does not exist
                     // in Northwind
-                    if (fieldName === "ShippingStatus") {
+                    if (
+                        fieldName === "ShippingStatus"
+                    ) {
 
                         shippingStatusRequested = true;
 
                     }
 
-                    // TotalQuantity and NetOrderValue
-                    // also do not exist in Northwind
+                    // These virtual fields also
+                    // do not exist in Northwind
                     else if (
                         fieldName !== "TotalQuantity" &&
-                        fieldName !== "NetOrderValue"
+                        fieldName !== "NetOrderValue" &&
+                        fieldName !== "CanMarkForReview"
                     ) {
 
                         newColumns.push(column);
@@ -102,20 +111,23 @@ module.exports = cds.service.impl(async function () {
             }
 
 
-            query.SELECT.columns = newColumns;
+            query.SELECT.columns =
+                newColumns;
         }
 
 
         // -------------------------------------------------
         // Call Northwind
         // -------------------------------------------------
-        var result = await northwind.run(query);
+        var result =
+            await northwind.run(query);
 
 
         // -------------------------------------------------
         // Convert result to array
         // -------------------------------------------------
         var rows;
+
 
         if (Array.isArray(result)) {
 
@@ -130,7 +142,11 @@ module.exports = cds.service.impl(async function () {
         // -------------------------------------------------
         // Process Orders
         // -------------------------------------------------
-        for (var j = 0; j < rows.length; j++) {
+        for (
+            var j = 0;
+            j < rows.length;
+            j++
+        ) {
 
             if (rows[j]) {
 
@@ -145,27 +161,49 @@ module.exports = cds.service.impl(async function () {
 
 
                 // -----------------------------------------
+                // Can Mark For Review
+                // -----------------------------------------
+                //
+                // true:
+                // user has coordinator role
+                //
+                // false:
+                // user does not have coordinator role
+                //
+                rows[j].CanMarkForReview =
+                    req.user.is(
+                        "ZNW_ORD_COORD"
+                    );
+
+
+                // -----------------------------------------
                 // Do not calculate totals for list page
                 // -----------------------------------------
-                rows[j].TotalQuantity = null;
+                rows[j].TotalQuantity =
+                    null;
 
-                rows[j].NetOrderValue = null;
+                rows[j].NetOrderValue =
+                    null;
 
 
                 // -----------------------------------------
                 // Calculate LineTotal when Order_Details
                 // was expanded
                 // -----------------------------------------
-                if (rows[j].Order_Details) {
+                if (
+                    rows[j].Order_Details
+                ) {
 
                     for (
                         var k = 0;
-                        k < rows[j].Order_Details.length;
+                        k <
+                        rows[j].Order_Details.length;
                         k++
                     ) {
 
                         var item =
-                            rows[j].Order_Details[k];
+                            rows[j]
+                                .Order_Details[k];
 
 
                         var price =
@@ -210,7 +248,10 @@ module.exports = cds.service.impl(async function () {
         //
         // Orders(10250)
         //
-        if (query.SELECT.one && rows[0]) {
+        if (
+            query.SELECT.one &&
+            rows[0]
+        ) {
 
             var orderID =
                 rows[0].OrderID;
@@ -246,23 +287,29 @@ module.exports = cds.service.impl(async function () {
         async function (req) {
 
             var query =
-                structuredClone(req.query);
+                structuredClone(
+                    req.query
+                );
 
 
             // ---------------------------------------------
             // Remove virtual LineTotal before
             // calling Northwind
             // ---------------------------------------------
-            if (query.SELECT.columns) {
+            if (
+                query.SELECT.columns
+            ) {
 
                 var newColumns = [];
 
-                var lineTotalRequested = false;
+                var lineTotalRequested =
+                    false;
 
 
                 for (
                     var i = 0;
-                    i < query.SELECT.columns.length;
+                    i <
+                    query.SELECT.columns.length;
                     i++
                 ) {
 
@@ -277,19 +324,25 @@ module.exports = cds.service.impl(async function () {
 
 
                         if (
-                            fieldName === "LineTotal"
+                            fieldName ===
+                            "LineTotal"
                         ) {
 
-                            lineTotalRequested = true;
+                            lineTotalRequested =
+                                true;
 
                         } else {
 
-                            newColumns.push(column);
+                            newColumns.push(
+                                column
+                            );
                         }
 
                     } else {
 
-                        newColumns.push(column);
+                        newColumns.push(
+                            column
+                        );
                     }
                 }
 
@@ -300,7 +353,9 @@ module.exports = cds.service.impl(async function () {
                 // Quantity
                 // Discount
                 //
-                if (lineTotalRequested) {
+                if (
+                    lineTotalRequested
+                ) {
 
                     addFieldIfMissing(
                         newColumns,
@@ -328,13 +383,17 @@ module.exports = cds.service.impl(async function () {
             // Call Northwind
             // ---------------------------------------------
             var result =
-                await northwind.run(query);
+                await northwind.run(
+                    query
+                );
 
 
             var rows;
 
 
-            if (Array.isArray(result)) {
+            if (
+                Array.isArray(result)
+            ) {
 
                 rows = result;
 
@@ -353,7 +412,8 @@ module.exports = cds.service.impl(async function () {
                 j++
             ) {
 
-                var row = rows[j];
+                var row =
+                    rows[j];
 
 
                 if (row) {
@@ -463,13 +523,16 @@ module.exports = cds.service.impl(async function () {
             var message =
                 "Order " +
                 orderID +
-                " marked for review (prototype only)";
+                " marked for review";
 
 
-            console.log(message);
-
-
-            return message;
+            console.log(
+                message
+            );
+            req.notify(
+            message
+        );
+        return message;
         }
     );
 
@@ -480,13 +543,17 @@ module.exports = cds.service.impl(async function () {
 // =========================================================
 // DERIVE SHIPPING STATUS
 // =========================================================
-function deriveShippingStatus(order) {
+function deriveShippingStatus(
+    order
+) {
 
 
     // -----------------------------------------------------
     // SHIPPED
     // -----------------------------------------------------
-    if (order.ShippedDate) {
+    if (
+        order.ShippedDate
+    ) {
 
         return "Shipped";
     }
@@ -507,7 +574,9 @@ function deriveShippingStatus(order) {
     // -----------------------------------------------------
     // No RequiredDate
     // -----------------------------------------------------
-    if (!order.RequiredDate) {
+    if (
+        !order.RequiredDate
+    ) {
 
         return "Open";
     }
@@ -530,7 +599,9 @@ function deriveShippingStatus(order) {
     // -----------------------------------------------------
     // OVERDUE
     // -----------------------------------------------------
-    if (requiredDate < today) {
+    if (
+        requiredDate < today
+    ) {
 
         return "Overdue";
     }
@@ -540,7 +611,9 @@ function deriveShippingStatus(order) {
     // Today + 7 days
     // -----------------------------------------------------
     var dueSoonDate =
-        new Date(today);
+        new Date(
+            today
+        );
 
 
     dueSoonDate.setDate(
@@ -551,7 +624,10 @@ function deriveShippingStatus(order) {
     // -----------------------------------------------------
     // DUE SOON
     // -----------------------------------------------------
-    if (requiredDate <= dueSoonDate) {
+    if (
+        requiredDate <=
+        dueSoonDate
+    ) {
 
         return "Due Soon";
     }
@@ -652,7 +728,8 @@ function rewriteFilterParts(
         if (
             part &&
             part.ref &&
-            part.ref[0] === "ShippingStatus" &&
+            part.ref[0] ===
+                "ShippingStatus" &&
             parts[i + 1] === "=" &&
             parts[i + 2]
         ) {
@@ -689,7 +766,9 @@ function rewriteFilterParts(
 
 
         // Keep normal filters
-        newParts.push(part);
+        newParts.push(
+            part
+        );
     }
 
 
@@ -720,7 +799,9 @@ function createShippingStatusCondition(
 
 
     var dueSoonDate =
-        new Date(today);
+        new Date(
+            today
+        );
 
 
     dueSoonDate.setDate(
@@ -740,12 +821,16 @@ function createShippingStatusCondition(
     // =====================================================
     // SHIPPED
     // =====================================================
-    if (status === "Shipped") {
+    if (
+        status === "Shipped"
+    ) {
 
         return [
 
             {
-                ref: ["ShippedDate"]
+                ref: [
+                    "ShippedDate"
+                ]
             },
 
             "!=",
@@ -762,12 +847,16 @@ function createShippingStatusCondition(
     // =====================================================
     // OVERDUE
     // =====================================================
-    if (status === "Overdue") {
+    if (
+        status === "Overdue"
+    ) {
 
         return [
 
             {
-                ref: ["ShippedDate"]
+                ref: [
+                    "ShippedDate"
+                ]
             },
 
             "=",
@@ -779,7 +868,9 @@ function createShippingStatusCondition(
             "and",
 
             {
-                ref: ["RequiredDate"]
+                ref: [
+                    "RequiredDate"
+                ]
             },
 
             "<",
@@ -796,12 +887,16 @@ function createShippingStatusCondition(
     // =====================================================
     // DUE SOON
     // =====================================================
-    if (status === "Due Soon") {
+    if (
+        status === "Due Soon"
+    ) {
 
         return [
 
             {
-                ref: ["ShippedDate"]
+                ref: [
+                    "ShippedDate"
+                ]
             },
 
             "=",
@@ -813,7 +908,9 @@ function createShippingStatusCondition(
             "and",
 
             {
-                ref: ["RequiredDate"]
+                ref: [
+                    "RequiredDate"
+                ]
             },
 
             ">=",
@@ -825,7 +922,9 @@ function createShippingStatusCondition(
             "and",
 
             {
-                ref: ["RequiredDate"]
+                ref: [
+                    "RequiredDate"
+                ]
             },
 
             "<=",
@@ -842,12 +941,16 @@ function createShippingStatusCondition(
     // =====================================================
     // OPEN
     // =====================================================
-    if (status === "Open") {
+    if (
+        status === "Open"
+    ) {
 
         return [
 
             {
-                ref: ["ShippedDate"]
+                ref: [
+                    "ShippedDate"
+                ]
             },
 
             "=",
@@ -859,7 +962,9 @@ function createShippingStatusCondition(
             "and",
 
             {
-                ref: ["RequiredDate"]
+                ref: [
+                    "RequiredDate"
+                ]
             },
 
             ">",
@@ -908,9 +1013,12 @@ async function calculateOrderTotals(
         );
 
 
-    var totalQuantity = 0;
+    var totalQuantity =
+        0;
 
-    var netOrderValue = 0;
+
+    var netOrderValue =
+        0;
 
 
     for (
@@ -979,7 +1087,8 @@ function addFieldIfMissing(
 ) {
 
 
-    var found = false;
+    var found =
+        false;
 
 
     for (
@@ -990,10 +1099,12 @@ function addFieldIfMissing(
 
         if (
             columns[i].ref &&
-            columns[i].ref[0] === fieldName
+            columns[i].ref[0] ===
+                fieldName
         ) {
 
-            found = true;
+            found =
+                true;
 
             break;
         }
@@ -1004,7 +1115,9 @@ function addFieldIfMissing(
 
         columns.push({
 
-            ref: [fieldName]
+            ref: [
+                fieldName
+            ]
 
         });
     }

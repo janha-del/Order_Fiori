@@ -24,6 +24,14 @@ annotate service.Orders with @(
         ShippingStatus
     ],
 
+    UI.Identification: [
+    {
+        $Type  : 'UI.DataFieldForAction',
+        Action : 'OrderWorkbenchService.markForReview',
+        Label  : 'Mark for Review'
+    }
+],
+
 
     /*
      * =====================================================

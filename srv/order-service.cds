@@ -67,21 +67,17 @@ service OrderWorkbenchService {
 
             virtual TotalQuantity : Integer,
 
-            virtual NetOrderValue : Decimal(15,2)
+            virtual NetOrderValue : Decimal(15,2),
+            virtual CanMarkForReview : Boolean
 
 
-    } actions {
+   } actions {
 
+    @requires: 'ZNW_ORD_COORD'
+    @Core.OperationAvailable: (:in.CanMarkForReview)
+    action markForReview(in: $self) returns String;
 
-        // =============================================
-        // ONLY COORDINATOR CAN EXECUTE THIS
-        // =============================================
-
-        @requires: 'ZNW_ORD_COORD'
-        action markForReview() returns String;
-
-
-    };
+};
 
 
 
