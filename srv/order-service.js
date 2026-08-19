@@ -1,11 +1,14 @@
 const cds = require("@sap/cds");
 const { SELECT } = cds.ql;
+const registerTaskHandlers =
+    require("./task-handler");
 
 
 module.exports = cds.service.impl(async function () {
 
     // Connect to Northwind
     var northwind = await cds.connect.to("Northwind");
+    registerTaskHandlers(this);
 
 
     // =====================================================
@@ -59,7 +62,6 @@ module.exports = cds.service.impl(async function () {
 
                 var column =
                     query.SELECT.columns[i];
-
 
                 if (column.ref) {
 

@@ -1,4 +1,5 @@
 using { Northwind as nw } from './external/Northwind';
+using { project1.db as db } from '../db/schema';
 
 
 @(path: '/order-workbench')
@@ -68,16 +69,17 @@ service OrderWorkbenchService {
             virtual TotalQuantity : Integer,
 
             virtual NetOrderValue : Decimal(15,2),
+
             virtual CanMarkForReview : Boolean
 
 
-   } actions {
+    } actions {
 
-    @requires: 'ZNW_ORD_COORD'
-    @Core.OperationAvailable: (:in.CanMarkForReview)
-    action markForReview(in: $self) returns String;
+        @requires: 'ZNW_ORD_COORD'
+        @Core.OperationAvailable: (:in.CanMarkForReview)
+        action markForReview(in: $self) returns String;
 
-};
+    };
 
 
 
@@ -131,6 +133,17 @@ service OrderWorkbenchService {
     @readonly
     entity Shippers
         as projection on nw.Shippers;
+
+
+
+    // =====================================================
+    // TASKS
+    // =====================================================
+    //
+    // Tasks are stored in our own database.
+    // They are NOT coming from Northwind.
+    //
+    entity Tasks as projection on db.Tasks;
 
 
 }

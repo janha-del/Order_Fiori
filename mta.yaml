@@ -27,6 +27,7 @@ modules:
     requires:
       - name: project1-destination
       - name: project1-auth
+      - name: project1-db
   - name: project1
     type: approuter.nodejs
     path: app/router
@@ -81,6 +82,14 @@ modules:
       supported-platforms:
         []
 
+  - name: project1-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    requires:
+      - name: project1-db
+
 resources:
   - name: project1-destination
     type: org.cloudfoundry.managed-service
@@ -128,3 +137,8 @@ resources:
     parameters:
       service: html5-apps-repo
       service-plan: app-runtime
+  - name: project1-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
