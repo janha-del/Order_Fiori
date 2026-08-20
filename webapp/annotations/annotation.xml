@@ -1,60 +1,90 @@
-<edmx:Edmx xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx" Version="4.0">
+<?xml version="1.0" encoding="UTF-8"?>
+<edmx:Edmx
+    xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx"
+    Version="4.0">
+
+    <!-- SAP Vocabulary References -->
     <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Common.xml">
         <edmx:Include Namespace="com.sap.vocabularies.Common.v1" Alias="Common"/>
     </edmx:Reference>
+
     <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/UI.xml">
         <edmx:Include Namespace="com.sap.vocabularies.UI.v1" Alias="UI"/>
     </edmx:Reference>
+
     <edmx:Reference Uri="https://sap.github.io/odata-vocabularies/vocabularies/Communication.xml">
         <edmx:Include Namespace="com.sap.vocabularies.Communication.v1" Alias="Communication"/>
     </edmx:Reference>
+
+    <!-- Northwind Metadata -->
     <edmx:Reference Uri="/V2/Northwind/Northwind.svc/$metadata">
         <edmx:Include Namespace="NorthwindModel"/>
         <edmx:Include Namespace="ODataWeb.Northwind.Model"/>
     </edmx:Reference>
+
     <edmx:DataServices>
-        <Schema xmlns="http://docs.oasis-open.org/odata/ns/edm" Namespace="local">
-        <Annotation Term="UI.LineItem">
-            <Collection>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="OrderID"/>
-                </Record>
+        <Schema
+            xmlns="http://docs.oasis-open.org/odata/ns/edm"
+            Namespace="local">
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="CustomerID"/>
-                </Record>
+            <Annotations Target="NorthwindModel.Orders">
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="EmployeeID"/>
-                </Record>
+                <Annotation Term="UI.LineItem">
+                    <Collection>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="OrderDate"/>
-                </Record>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="OrderID"/>
+                            <PropertyValue Property="Label" String="{@i18n>ORDER_ID}"/>
+                        </Record>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="RequiredDate"/>
-                </Record>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="CustomerID"/>
+                            <PropertyValue Property="Label" String="{@i18n>CUSTOMER_ID}"/>
+                        </Record>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="ShippedDate"/>
-                </Record>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="EmployeeID"/>
+                            <PropertyValue Property="Label" String="{@i18n>EMPLOYEE_ID}"/>
+                        </Record>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="ShipCountry"/>
-                </Record>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="OrderDate"/>
+                            <PropertyValue Property="Label" String="{@i18n>ORDER_DATE}"/>
+                        </Record>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="ShipCity"/>
-                </Record>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="RequiredDate"/>
+                            <PropertyValue Property="Label" String="{@i18n>REQUIRED_DATE}"/>
+                        </Record>
 
-                <Record Type="UI.DataField">
-                    <PropertyValue Property="Value" Path="Freight"/>
-                </Record>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="ShippedDate"/>
+                            <PropertyValue Property="Label" String="{@i18n>SHIPPED_DATE}"/>
+                        </Record>
 
-            </Collection>
-        </Annotation>
-     </Schema>
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="ShipCountry"/>
+                            <PropertyValue Property="Label" String="{@i18n>SHIP_COUNTRY}"/>
+                        </Record>
+
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="ShipCity"/>
+                            <PropertyValue Property="Label" String="{@i18n>SHIP_CITY}"/>
+                        </Record>
+
+                        <Record Type="UI.DataField">
+                            <PropertyValue Property="Value" Path="Freight"/>
+                            <PropertyValue Property="Label" String="{@i18n>FREIGHT}"/>
+                        </Record>
+
+                    </Collection>
+                </Annotation>
+
+            </Annotations>
+
+        </Schema>
+
     </edmx:DataServices>
+
 </edmx:Edmx>
