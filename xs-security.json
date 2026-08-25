@@ -1,4 +1,7 @@
 {
+  "xsappname": "project1-c518a097trial-dev",
+  "tenant-mode": "dedicated",
+
   "scopes": [
     {
       "name": "$XSAPPNAME.ZNW_ORD_DISPLAY",
@@ -13,7 +16,9 @@
       "description": "ZNW_ORD_ANALYST"
     }
   ],
+
   "attributes": [],
+
   "role-templates": [
     {
       "name": "ZNW_ORD_DISPLAY",
@@ -39,5 +44,11 @@
       ],
       "attribute-references": []
     }
-  ]
+  ],
+
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "https://oauth.pstmn.io/v1/callback"
+    ]
+  }
 }

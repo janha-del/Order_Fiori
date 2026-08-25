@@ -22,5 +22,6 @@
       "authenticationType": "xsuaa",
       "csrfProtection": true
     }
+    
   ]
 }
