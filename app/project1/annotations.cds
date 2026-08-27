@@ -24,13 +24,28 @@ annotate service.Orders with @(
         ShippingStatus
     ],
 
+
+    /*
+     * =====================================================
+     * OBJECT PAGE ACTIONS
+     * =====================================================
+     */
+
     UI.Identification: [
-    {
-        $Type  : 'UI.DataFieldForAction',
-        Action : 'OrderWorkbenchService.markForReview',
-        Label  : 'Mark for Review'
-    }
-],
+
+        {
+            $Type  : 'UI.DataFieldForAction',
+            Action : 'OrderWorkbenchService.markForReview',
+            Label  : 'Mark for Review'
+        },
+
+        {
+            $Type  : 'UI.DataFieldForAction',
+            Action : 'OrderWorkbenchService.createTask',
+            Label  : 'Create Task'
+        }
+
+    ],
 
 
     /*
@@ -85,6 +100,7 @@ annotate service.Orders with @(
          * 2 = Critical  -> Orange
          * 0 = Neutral
          */
+
         {
             $Type: 'UI.DataField',
             Value: ShippingStatus,
@@ -179,6 +195,7 @@ annotate service.Orders with @(
              * SHIPPING STATUS WITH SEMANTIC COLOR
              * ON OBJECT PAGE
              */
+
             {
                 $Type: 'UI.DataField',
                 Value: ShippingStatus,
@@ -504,7 +521,13 @@ annotate service.Orders with @(
             ID: 'OrderItems',
             Label: 'Order Items',
             Target: 'Order_Details/@UI.LineItem'
-        }
+        },
+        {
+    $Type: 'UI.ReferenceFacet',
+    ID: 'Tasks',
+    Label: 'Tasks',
+    Target: 'OrderTasks/@UI.LineItem'
+}
 
     ]
 
