@@ -1,344 +1,609 @@
 const cds = require("@sap/cds");
-const { SELECT } = cds.ql;
+const {
+    SELECT,
+    INSERT,
+    UPDATE
+} = cds.ql;
+
 const registerTaskHandlers =
     require("./task-handler");
 
 
 module.exports = cds.service.impl(async function () {
 
-    // Connect to Northwind
-    var northwind = await cds.connect.to("Northwind");
+    // =====================================================
+    // CONNECT TO NORTHWIND
+    // =====================================================
+
+    const northwind =
+        await cds.connect.to("Northwind");
+
+
+    // Register existing Task handlers
     registerTaskHandlers(this);
 
 
     // =====================================================
     // ORDERS
     // =====================================================
-    this.on("READ", "Orders", async function (req) {
 
-        // Copy incoming request
-        var query = structuredClone(req.query);
-
-
-        // -------------------------------------------------
-        // Rewrite ShippingStatus filters
-        // -------------------------------------------------
-        rewriteShippingStatusFilter(query, req);
-
-
-        // -------------------------------------------------
-        // Limit Orders list to 100
-        // -------------------------------------------------
-        //
-        // Do not apply limit for:
-        //
-        // Orders(10250)
-        //
-        if (!query.SELECT.one && !query.SELECT.limit) {
-
-            query.SELECT.limit = {
-                rows: {
-                    val: 100
-                }
-            };
-        }
-
-
-        // -------------------------------------------------
-        // Remove virtual fields before calling Northwind
-        // -------------------------------------------------
-        if (query.SELECT.columns) {
-
-            var newColumns = [];
-
-            var shippingStatusRequested = false;
-
-
-            for (
-                var i = 0;
-                i < query.SELECT.columns.length;
-                i++
-            ) {
-
-                var column =
-                    query.SELECT.columns[i];
-
-                if (column.ref) {
-
-                    var fieldName =
-                        column.ref[0];
-
-
-                    // ShippingStatus does not exist
-                    // in Northwind
-                    if (
-                        fieldName === "ShippingStatus"
-                    ) {
-
-                        shippingStatusRequested = true;
-
-                    }
-
-                    // These virtual fields also
-                    // do not exist in Northwind
-                    else if (
-                        fieldName !== "TotalQuantity" &&
-                        fieldName !== "NetOrderValue" &&
-                        fieldName !== "CanMarkForReview"
-                    ) {
-
-                        newColumns.push(column);
-                    }
-
-                } else {
-
-                    newColumns.push(column);
-                }
-            }
-
-
-            // ShippingStatus calculation needs these
-            // two real Northwind fields
-            if (shippingStatusRequested) {
-
-                addFieldIfMissing(
-                    newColumns,
-                    "ShippedDate"
-                );
-
-                addFieldIfMissing(
-                    newColumns,
-                    "RequiredDate"
-                );
-            }
-
-
-            query.SELECT.columns =
-                newColumns;
-        }
-
-
-        // -------------------------------------------------
-        // Call Northwind
-        // -------------------------------------------------
-        var result =
-            await northwind.run(query);
-
-
-        // -------------------------------------------------
-        // Convert result to array
-        // -------------------------------------------------
-        var rows;
-
-
-        if (Array.isArray(result)) {
-
-            rows = result;
-
-        } else {
-
-            rows = [result];
-        }
-
-
-        // -------------------------------------------------
-        // Process Orders
-        // -------------------------------------------------
-        for (
-            var j = 0;
-            j < rows.length;
-            j++
-        ) {
-
-            if (rows[j]) {
-
-
-                // -----------------------------------------
-                // Shipping Status
-                // -----------------------------------------
-                rows[j].ShippingStatus =
-                    deriveShippingStatus(
-                        rows[j]
-                    );
-
-
-                // -----------------------------------------
-                // Can Mark For Review
-                // -----------------------------------------
-                //
-                // true:
-                // user has coordinator role
-                //
-                // false:
-                // user does not have coordinator role
-                //
-                rows[j].CanMarkForReview =
-                    req.user.is(
-                        "ZNW_ORD_COORD"
-                    );
-
-
-                // -----------------------------------------
-                // Do not calculate totals for list page
-                // -----------------------------------------
-                rows[j].TotalQuantity =
-                    null;
-
-                rows[j].NetOrderValue =
-                    null;
-
-
-                // -----------------------------------------
-                // Calculate LineTotal when Order_Details
-                // was expanded
-                // -----------------------------------------
-                if (
-                    rows[j].Order_Details
-                ) {
-
-                    for (
-                        var k = 0;
-                        k <
-                        rows[j].Order_Details.length;
-                        k++
-                    ) {
-
-                        var item =
-                            rows[j]
-                                .Order_Details[k];
-
-
-                        var price =
-                            Number(
-                                item.UnitPrice || 0
-                            );
-
-
-                        var quantity =
-                            Number(
-                                item.Quantity || 0
-                            );
-
-
-                        var discount =
-                            Number(
-                                item.Discount || 0
-                            );
-
-
-                        var lineTotal =
-                            price *
-                            quantity *
-                            (1 - discount);
-
-
-                        item.LineTotal =
-                            Number(
-                                lineTotal.toFixed(2)
-                            );
-                    }
-                }
-            }
-        }
-
-
-        // -------------------------------------------------
-        // Calculate totals only for ONE Order
-        // -------------------------------------------------
-        //
-        // Example:
-        //
-        // Orders(10250)
-        //
-        if (
-            query.SELECT.one &&
-            rows[0]
-        ) {
-
-            var orderID =
-                rows[0].OrderID;
-
-
-            var totals =
-                await calculateOrderTotals(
-                    orderID,
-                    northwind
-                );
-
-
-            rows[0].TotalQuantity =
-                totals.TotalQuantity;
-
-
-            rows[0].NetOrderValue =
-                totals.NetOrderValue;
-        }
-
-
-        return result;
-    });
-
-
-
-    // =====================================================
-    // ORDER DETAILS
-    // =====================================================
     this.on(
         "READ",
-        "OrderDetails",
+        "Orders",
         async function (req) {
 
-            var query =
+
+            // =================================================
+            // CURRENT LOGGED-IN USER
+            // =================================================
+
+            console.log(
+                "Logged-in user:",
+                req.user.id,
+                "| DISPLAY:",
+                req.user.is("ZNW_ORD_DISPLAY"),
+                "| COORD:",
+                req.user.is("ZNW_ORD_COORD"),
+                "| ANALYST:",
+                req.user.is("ZNW_ORD_ANALYST")
+            );
+
+
+            // =================================================
+            // COPY QUERY
+            // =================================================
+
+            const query =
                 structuredClone(
                     req.query
                 );
 
 
-            // ---------------------------------------------
-            // Remove virtual LineTotal before
-            // calling Northwind
-            // ---------------------------------------------
+            // =================================================
+            // SHIPPING STATUS FILTER
+            // =================================================
+
+            rewriteShippingStatusFilter(
+                query,
+                req
+            );
+
+
+            // =================================================
+            // LIMIT LIST TO 100 ORDERS
+            // =================================================
+
+            if (
+                !query.SELECT.one &&
+                !query.SELECT.limit
+            ) {
+
+                query.SELECT.limit = {
+
+                    rows: {
+                        val: 100
+                    }
+
+                };
+            }
+
+
+            // =================================================
+            // REMOVE VIRTUAL FIELDS BEFORE NORTHWIND CALL
+            // =================================================
+
             if (
                 query.SELECT.columns
             ) {
 
-                var newColumns = [];
+                const newColumns = [];
 
-                var lineTotalRequested =
+                let shippingStatusRequested =
                     false;
 
 
                 for (
-                    var i = 0;
-                    i <
-                    query.SELECT.columns.length;
-                    i++
+                    const column
+                    of query.SELECT.columns
                 ) {
 
-                    var column =
-                        query.SELECT.columns[i];
+
+                    // -----------------------------------------
+                    // Non-field column
+                    // -----------------------------------------
+
+                    if (!column.ref) {
+
+                        newColumns.push(
+                            column
+                        );
+
+                        continue;
+                    }
 
 
-                    if (column.ref) {
-
-                        var fieldName =
-                            column.ref[0];
+                    const fieldName =
+                        column.ref[0];
 
 
-                        if (
-                            fieldName ===
-                            "LineTotal"
-                        ) {
+                    // -----------------------------------------
+                    // SHIPPING STATUS
+                    // -----------------------------------------
 
-                            lineTotalRequested =
-                                true;
+                    if (
+                        fieldName ===
+                        "ShippingStatus"
+                    ) {
 
-                        } else {
+                        shippingStatusRequested =
+                            true;
 
-                            newColumns.push(
-                                column
+                        continue;
+                    }
+
+
+                    // -----------------------------------------
+                    // LOCAL / VIRTUAL FIELDS
+                    // -----------------------------------------
+
+                    const localVirtualFields = [
+
+                        "TotalQuantity",
+
+                        "NetOrderValue",
+
+                        "CanMarkForReview",
+
+                        "ReviewStatus",
+
+                        "ReviewReason",
+
+                        "MarkedBy",
+
+                        "MarkedAt",
+
+                        "AnalystComment",
+
+                        "ReviewedBy",
+
+                        "ReviewedAt",
+
+                        "CanCompleteReview",
+
+                        "CanRejectReview"
+
+                    ];
+
+
+                    if (
+                        !localVirtualFields.includes(
+                            fieldName
+                        )
+                    ) {
+
+                        newColumns.push(
+                            column
+                        );
+                    }
+                }
+
+
+                // -----------------------------------------
+                // ShippingStatus needs these fields
+                // -----------------------------------------
+
+                if (
+                    shippingStatusRequested
+                ) {
+
+                    addFieldIfMissing(
+                        newColumns,
+                        "ShippedDate"
+                    );
+
+
+                    addFieldIfMissing(
+                        newColumns,
+                        "RequiredDate"
+                    );
+                }
+
+
+                query.SELECT.columns =
+                    newColumns;
+            }
+
+
+            // =================================================
+            // CALL NORTHWIND
+            // =================================================
+
+            const result =
+                await northwind.run(
+                    query
+                );
+
+
+            const rows =
+                Array.isArray(result)
+                    ? result
+                    : [result];
+
+
+            // =================================================
+            // PROCESS ORDERS
+            // =================================================
+
+            for (
+                const row
+                of rows
+            ) {
+
+                if (!row) {
+
+                    continue;
+                }
+
+
+                // -----------------------------------------
+                // SHIPPING STATUS
+                // -----------------------------------------
+
+                row.ShippingStatus =
+                    deriveShippingStatus(
+                        row
+                    );
+
+
+                // -----------------------------------------
+                // DEFAULT ACTION AVAILABILITY
+                // -----------------------------------------
+
+                row.CanMarkForReview =
+                    req.user.is(
+                        "ZNW_ORD_COORD"
+                    );
+
+
+                row.CanCompleteReview =
+                    false;
+
+
+                row.CanRejectReview =
+                    false;
+
+
+                // -----------------------------------------
+                // Totals calculated only on Object Page
+                // -----------------------------------------
+
+                row.TotalQuantity =
+                    null;
+
+
+                row.NetOrderValue =
+                    null;
+
+
+                // -----------------------------------------
+                // ORDER DETAILS LINE TOTAL
+                // -----------------------------------------
+
+                if (
+                    row.Order_Details
+                ) {
+
+                    for (
+                        const item
+                        of row.Order_Details
+                    ) {
+
+                        const price =
+                            Number(
+                                item.UnitPrice ||
+                                0
                             );
-                        }
+
+
+                        const quantity =
+                            Number(
+                                item.Quantity ||
+                                0
+                            );
+
+
+                        const discount =
+                            Number(
+                                item.Discount ||
+                                0
+                            );
+
+
+                        const lineTotal =
+                            price *
+                            quantity *
+                            (
+                                1 -
+                                discount
+                            );
+
+
+                        item.LineTotal =
+                            Number(
+                                lineTotal.toFixed(
+                                    2
+                                )
+                            );
+                    }
+                }
+            }
+
+
+            // =================================================
+            // SINGLE ORDER OBJECT PAGE
+            // =================================================
+
+            if (
+                query.SELECT.one &&
+                rows[0]
+            ) {
+
+                const order =
+                    rows[0];
+
+
+                const orderID =
+                    order.OrderID;
+
+
+                // =============================================
+                // ORDER TOTALS
+                // =============================================
+
+                const totals =
+                    await calculateOrderTotals(
+                        orderID,
+                        northwind
+                    );
+
+
+                order.TotalQuantity =
+                    totals.TotalQuantity;
+
+
+                order.NetOrderValue =
+                    totals.NetOrderValue;
+
+
+                // =============================================
+                // LOAD REVIEW FROM LOCAL HANA
+                // =============================================
+
+                const dbReviews =
+                    cds.entities(
+                        "project1.db"
+                    ).OrderReviews;
+
+
+                const review =
+                    await SELECT
+                        .one
+                        .from(
+                            dbReviews
+                        )
+                        .where({
+
+                            OrderID:
+                                orderID
+
+                        });
+
+
+                // =============================================
+                // REVIEW EXISTS
+                // =============================================
+
+                if (review) {
+
+                    order.ReviewStatus =
+                        review.ReviewStatus;
+
+
+                    order.ReviewReason =
+                        review.ReviewReason;
+
+
+                    order.MarkedBy =
+                        review.MarkedBy;
+
+
+                    order.MarkedAt =
+                        review.MarkedAt;
+
+
+                    order.AnalystComment =
+                        review.AnalystComment;
+
+
+                    order.ReviewedBy =
+                        review.ReviewedBy;
+
+
+                    order.ReviewedAt =
+                        review.ReviewedAt;
+
+                } else {
+
+
+                    // =========================================
+                    // NO REVIEW YET
+                    // =========================================
+
+                    order.ReviewStatus =
+                        "Not Reviewed";
+
+
+                    order.ReviewReason =
+                        null;
+
+
+                    order.MarkedBy =
+                        null;
+
+
+                    order.MarkedAt =
+                        null;
+
+
+                    order.AnalystComment =
+                        null;
+
+
+                    order.ReviewedBy =
+                        null;
+
+
+                    order.ReviewedAt =
+                        null;
+                }
+
+
+                // =============================================
+                // COORDINATOR ACTION
+                // =============================================
+                //
+                // Coordinator can:
+                //
+                // Not Reviewed -> Mark for Review
+                //
+                // Rejected -> Mark again
+                //
+                // =============================================
+
+                order.CanMarkForReview =
+
+                    req.user.is(
+                        "ZNW_ORD_COORD"
+                    )
+
+                    &&
+
+                    (
+                        order.ReviewStatus ===
+                            "Not Reviewed"
+
+                        ||
+
+                        order.ReviewStatus ===
+                            "Rejected"
+                    );
+
+
+                // =============================================
+                // ANALYST - COMPLETE
+                // =============================================
+
+                order.CanCompleteReview =
+
+                    req.user.is(
+                        "ZNW_ORD_ANALYST"
+                    )
+
+                    &&
+
+                    order.ReviewStatus ===
+                        "Pending Review";
+
+
+                // =============================================
+                // ANALYST - REJECT
+                // =============================================
+
+                order.CanRejectReview =
+
+                    req.user.is(
+                        "ZNW_ORD_ANALYST"
+                    )
+
+                    &&
+
+                    order.ReviewStatus ===
+                        "Pending Review";
+
+
+                // =============================================
+                // TEMPORARY DEBUG LOG
+                // =============================================
+
+                console.log(
+
+                    "Order:",
+                    order.OrderID,
+
+                    "| ReviewStatus:",
+                    order.ReviewStatus,
+
+                    "| CanMarkForReview:",
+                    order.CanMarkForReview,
+
+                    "| CanCompleteReview:",
+                    order.CanCompleteReview,
+
+                    "| CanRejectReview:",
+                    order.CanRejectReview
+
+                );
+            }
+
+
+            return result;
+        }
+    );
+
+
+    // =====================================================
+    // ORDER DETAILS
+    // =====================================================
+
+    this.on(
+        "READ",
+        "OrderDetails",
+        async function (req) {
+
+            const query =
+                structuredClone(
+                    req.query
+                );
+
+
+            // =================================================
+            // REMOVE VIRTUAL LINETOTAL
+            // =================================================
+
+            if (
+                query.SELECT.columns
+            ) {
+
+                const newColumns = [];
+
+                let lineTotalRequested =
+                    false;
+
+
+                for (
+                    const column
+                    of query.SELECT.columns
+                ) {
+
+
+                    if (
+                        column.ref &&
+                        column.ref[0] ===
+                            "LineTotal"
+                    ) {
+
+                        lineTotalRequested =
+                            true;
 
                     } else {
 
@@ -349,12 +614,10 @@ module.exports = cds.service.impl(async function () {
                 }
 
 
-                // LineTotal requires:
-                //
-                // UnitPrice
-                // Quantity
-                // Discount
-                //
+                // -----------------------------------------
+                // Required for LineTotal
+                // -----------------------------------------
+
                 if (
                     lineTotalRequested
                 ) {
@@ -364,10 +627,12 @@ module.exports = cds.service.impl(async function () {
                         "UnitPrice"
                     );
 
+
                     addFieldIfMissing(
                         newColumns,
                         "Quantity"
                     );
+
 
                     addFieldIfMissing(
                         newColumns,
@@ -381,74 +646,73 @@ module.exports = cds.service.impl(async function () {
             }
 
 
-            // ---------------------------------------------
-            // Call Northwind
-            // ---------------------------------------------
-            var result =
+            // =================================================
+            // NORTHWIND CALL
+            // =================================================
+
+            const result =
                 await northwind.run(
                     query
                 );
 
 
-            var rows;
-
-
-            if (
+            const rows =
                 Array.isArray(result)
-            ) {
-
-                rows = result;
-
-            } else {
-
-                rows = [result];
-            }
+                    ? result
+                    : [result];
 
 
-            // ---------------------------------------------
-            // Calculate LineTotal
-            // ---------------------------------------------
+            // =================================================
+            // CALCULATE LINE TOTAL
+            // =================================================
+
             for (
-                var j = 0;
-                j < rows.length;
-                j++
+                const row
+                of rows
             ) {
 
-                var row =
-                    rows[j];
+                if (!row) {
 
-
-                if (row) {
-
-                    var price =
-                        Number(
-                            row.UnitPrice || 0
-                        );
-
-
-                    var quantity =
-                        Number(
-                            row.Quantity || 0
-                        );
-
-
-                    var discount =
-                        Number(
-                            row.Discount || 0
-                        );
-
-
-                    var lineTotal =
-                        price *
-                        quantity *
-                        (1 - discount);
-
-
-                    row.LineTotal =
-                        Number(
-                            lineTotal.toFixed(2)
-                        );
+                    continue;
                 }
+
+
+                const price =
+                    Number(
+                        row.UnitPrice ||
+                        0
+                    );
+
+
+                const quantity =
+                    Number(
+                        row.Quantity ||
+                        0
+                    );
+
+
+                const discount =
+                    Number(
+                        row.Discount ||
+                        0
+                    );
+
+
+                const lineTotal =
+                    price *
+                    quantity *
+                    (
+                        1 -
+                        discount
+                    );
+
+
+                row.LineTotal =
+                    Number(
+                        lineTotal.toFixed(
+                            2
+                        )
+                    );
             }
 
 
@@ -457,102 +721,514 @@ module.exports = cds.service.impl(async function () {
     );
 
 
-
     // =====================================================
     // CUSTOMERS
     // =====================================================
+
     this.on(
         "READ",
         "Customers",
-        async function (req) {
+        function (req) {
 
             return northwind.run(
                 req.query
             );
         }
     );
-
 
 
     // =====================================================
     // EMPLOYEES
     // =====================================================
+
     this.on(
         "READ",
         "Employees",
-        async function (req) {
+        function (req) {
 
             return northwind.run(
                 req.query
             );
         }
     );
-
 
 
     // =====================================================
     // SHIPPERS
     // =====================================================
+
     this.on(
         "READ",
         "Shippers",
-        async function (req) {
+        function (req) {
 
             return northwind.run(
                 req.query
             );
         }
     );
-
 
 
     // =====================================================
     // MARK FOR REVIEW
     // =====================================================
     //
-    // Phase 1:
-    // No Northwind update.
+    // COORDINATOR
     //
+    // =====================================================
+
     this.on(
         "markForReview",
         "Orders",
         async function (req) {
 
-            var orderID =
+            const orderID =
                 req.params[0].OrderID;
 
 
-            var message =
+            // =============================================
+            // REVIEW REASON REQUIRED
+            // =============================================
+
+            if (
+                typeof req.data.ReviewReason !==
+                    "string"
+
+                ||
+
+                !req.data.ReviewReason.trim()
+            ) {
+
+                return req.error(
+                    400,
+                    "Review Reason is required"
+                );
+            }
+
+
+            const dbReviews =
+                cds.entities(
+                    "project1.db"
+                ).OrderReviews;
+
+
+            // =============================================
+            // CHECK EXISTING REVIEW
+            // =============================================
+
+            const existing =
+                await SELECT
+                    .one
+                    .from(
+                        dbReviews
+                    )
+                    .where({
+
+                        OrderID:
+                            orderID
+
+                    });
+
+
+            // =============================================
+            // ALREADY PENDING
+            // =============================================
+
+            if (
+                existing &&
+                existing.ReviewStatus ===
+                    "Pending Review"
+            ) {
+
+                return req.error(
+                    400,
+                    "Order is already pending review"
+                );
+            }
+
+
+            // =============================================
+            // ALREADY COMPLETED
+            // =============================================
+
+            if (
+                existing &&
+                existing.ReviewStatus ===
+                    "Reviewed"
+            ) {
+
+                return req.error(
+                    400,
+                    "Order review is already completed"
+                );
+            }
+
+
+            // =============================================
+            // REVIEW DATA
+            // =============================================
+
+            const reviewData = {
+
+                ReviewStatus:
+                    "Pending Review",
+
+                ReviewReason:
+                    req.data.ReviewReason.trim(),
+
+                MarkedBy:
+                    req.user.id,
+
+                MarkedAt:
+                    new Date(),
+
+                AnalystComment:
+                    null,
+
+                ReviewedBy:
+                    null,
+
+                ReviewedAt:
+                    null
+
+            };
+
+
+            // =============================================
+            // UPDATE EXISTING REVIEW
+            // =============================================
+
+            if (existing) {
+
+                await UPDATE(
+                    dbReviews
+                )
+                    .set(
+                        reviewData
+                    )
+                    .where({
+
+                        OrderID:
+                            orderID
+
+                    });
+
+            } else {
+
+
+                // =========================================
+                // CREATE NEW REVIEW
+                // =========================================
+
+                await INSERT
+                    .into(
+                        dbReviews
+                    )
+                    .entries({
+
+                        OrderID:
+                            orderID,
+
+                        ...reviewData
+
+                    });
+            }
+
+
+            const message =
                 "Order " +
                 orderID +
                 " marked for review";
 
 
-            console.log(
+            req.notify(
                 message
             );
+
+
+            return message;
+        }
+    );
+
+
+    // =====================================================
+    // COMPLETE REVIEW
+    // =====================================================
+    //
+    // ANALYST
+    //
+    // =====================================================
+
+    this.on(
+        "completeReview",
+        "Orders",
+        async function (req) {
+
+            const orderID =
+                req.params[0].OrderID;
+
+
+            const dbReviews =
+                cds.entities(
+                    "project1.db"
+                ).OrderReviews;
+
+
+            // =============================================
+            // GET REVIEW
+            // =============================================
+
+            const review =
+                await SELECT
+                    .one
+                    .from(
+                        dbReviews
+                    )
+                    .where({
+
+                        OrderID:
+                            orderID
+
+                    });
+
+
+            if (!review) {
+
+                return req.error(
+                    404,
+                    "Review record not found"
+                );
+            }
+
+
+            // =============================================
+            // MUST BE PENDING
+            // =============================================
+
+            if (
+                review.ReviewStatus !==
+                    "Pending Review"
+            ) {
+
+                return req.error(
+                    400,
+                    "Order is not pending review"
+                );
+            }
+
+
+            // =============================================
+            // ANALYST COMMENT
+            // =============================================
+
+            let analystComment =
+                req.data.AnalystComment;
+
+
+            if (
+                typeof analystComment ===
+                    "string"
+            ) {
+
+                analystComment =
+                    analystComment.trim();
+            }
+
+
+            // =============================================
+            // COMPLETE REVIEW
+            // =============================================
+
+            await UPDATE(
+                dbReviews
+            )
+                .set({
+
+                    ReviewStatus:
+                        "Reviewed",
+
+                    AnalystComment:
+                        analystComment ||
+                        null,
+
+                    ReviewedBy:
+                        req.user.id,
+
+                    ReviewedAt:
+                        new Date()
+
+                })
+                .where({
+
+                    OrderID:
+                        orderID
+
+                });
+
+
+            const message =
+                "Order " +
+                orderID +
+                " review completed";
+
+
             req.notify(
-            message
-        );
-        return message;
+                message
+            );
+
+
+            return message;
+        }
+    );
+
+
+    // =====================================================
+    // REJECT REVIEW
+    // =====================================================
+    //
+    // ANALYST
+    //
+    // =====================================================
+
+    this.on(
+        "rejectReview",
+        "Orders",
+        async function (req) {
+
+            const orderID =
+                req.params[0].OrderID;
+
+
+            // =============================================
+            // REJECTION REASON REQUIRED
+            // =============================================
+
+            if (
+                typeof req.data.AnalystComment !==
+                    "string"
+
+                ||
+
+                !req.data.AnalystComment.trim()
+            ) {
+
+                return req.error(
+                    400,
+                    "Rejection Reason is required"
+                );
+            }
+
+
+            const dbReviews =
+                cds.entities(
+                    "project1.db"
+                ).OrderReviews;
+
+
+            // =============================================
+            // GET REVIEW
+            // =============================================
+
+            const review =
+                await SELECT
+                    .one
+                    .from(
+                        dbReviews
+                    )
+                    .where({
+
+                        OrderID:
+                            orderID
+
+                    });
+
+
+            if (!review) {
+
+                return req.error(
+                    404,
+                    "Review record not found"
+                );
+            }
+
+
+            // =============================================
+            // MUST BE PENDING
+            // =============================================
+
+            if (
+                review.ReviewStatus !==
+                    "Pending Review"
+            ) {
+
+                return req.error(
+                    400,
+                    "Order is not pending review"
+                );
+            }
+
+
+            // =============================================
+            // REJECT
+            // =============================================
+
+            await UPDATE(
+                dbReviews
+            )
+                .set({
+
+                    ReviewStatus:
+                        "Rejected",
+
+                    AnalystComment:
+                        req.data.AnalystComment.trim(),
+
+                    ReviewedBy:
+                        req.user.id,
+
+                    ReviewedAt:
+                        new Date()
+
+                })
+                .where({
+
+                    OrderID:
+                        orderID
+
+                });
+
+
+            const message =
+                "Order " +
+                orderID +
+                " review rejected";
+
+
+            req.notify(
+                message
+            );
+
+
+            return message;
         }
     );
 
 });
 
 
-
 // =========================================================
 // DERIVE SHIPPING STATUS
 // =========================================================
+
 function deriveShippingStatus(
     order
 ) {
 
 
-    // -----------------------------------------------------
+    // =====================================================
     // SHIPPED
-    // -----------------------------------------------------
+    // =====================================================
+
     if (
         order.ShippedDate
     ) {
@@ -561,7 +1237,7 @@ function deriveShippingStatus(
     }
 
 
-    var today =
+    const today =
         new Date();
 
 
@@ -573,9 +1249,10 @@ function deriveShippingStatus(
     );
 
 
-    // -----------------------------------------------------
-    // No RequiredDate
-    // -----------------------------------------------------
+    // =====================================================
+    // NO REQUIRED DATE
+    // =====================================================
+
     if (
         !order.RequiredDate
     ) {
@@ -584,7 +1261,7 @@ function deriveShippingStatus(
     }
 
 
-    var requiredDate =
+    const requiredDate =
         new Date(
             order.RequiredDate
         );
@@ -598,34 +1275,37 @@ function deriveShippingStatus(
     );
 
 
-    // -----------------------------------------------------
+    // =====================================================
     // OVERDUE
-    // -----------------------------------------------------
+    // =====================================================
+
     if (
-        requiredDate < today
+        requiredDate <
+        today
     ) {
 
         return "Overdue";
     }
 
 
-    // -----------------------------------------------------
-    // Today + 7 days
-    // -----------------------------------------------------
-    var dueSoonDate =
+    // =====================================================
+    // DUE SOON
+    // =====================================================
+
+    const dueSoonDate =
         new Date(
             today
         );
 
 
     dueSoonDate.setDate(
-        dueSoonDate.getDate() + 7
+
+        dueSoonDate.getDate() +
+        7
+
     );
 
 
-    // -----------------------------------------------------
-    // DUE SOON
-    // -----------------------------------------------------
     if (
         requiredDate <=
         dueSoonDate
@@ -635,27 +1315,26 @@ function deriveShippingStatus(
     }
 
 
-    // -----------------------------------------------------
+    // =====================================================
     // OPEN
-    // -----------------------------------------------------
+    // =====================================================
+
     return "Open";
 }
 
 
+// =========================================================
+// SHIPPING STATUS FILTER
+// =========================================================
 
-// =========================================================
-// REWRITE SHIPPING STATUS FILTER
-// =========================================================
 function rewriteShippingStatusFilter(
     query,
     req
 ) {
 
-    var where =
-        query.SELECT.where;
-
-
-    if (!where) {
+    if (
+        !query.SELECT.where
+    ) {
 
         return;
     }
@@ -663,48 +1342,38 @@ function rewriteShippingStatusFilter(
 
     query.SELECT.where =
         rewriteFilterParts(
-            where,
+            query.SELECT.where,
             req
         );
 }
 
 
-
 // =========================================================
 // REWRITE FILTER PARTS
 // =========================================================
-//
-// Supports:
-//
-// ShippingStatus eq 'Overdue'
-//
-// and also:
-//
-// CustomerID eq 'ERNSH'
-// AND
-// ShippingStatus eq 'Overdue'
-//
+
 function rewriteFilterParts(
     parts,
     req
 ) {
 
-    var newParts = [];
+    const newParts = [];
 
 
     for (
-        var i = 0;
+        let i = 0;
         i < parts.length;
         i++
     ) {
 
-        var part =
+        const part =
             parts[i];
 
 
-        // -------------------------------------------------
-        // Handle brackets / parentheses
-        // -------------------------------------------------
+        // =================================================
+        // PARENTHESES
+        // =================================================
+
         if (
             part &&
             part.xpr
@@ -717,6 +1386,7 @@ function rewriteFilterParts(
                         part.xpr,
                         req
                     )
+
             });
 
 
@@ -724,50 +1394,44 @@ function rewriteFilterParts(
         }
 
 
-        // -------------------------------------------------
-        // Find ShippingStatus filter
-        // -------------------------------------------------
+        // =================================================
+        // SHIPPING STATUS FILTER
+        // =================================================
+
         if (
             part &&
             part.ref &&
             part.ref[0] ===
                 "ShippingStatus" &&
-            parts[i + 1] === "=" &&
+            parts[i + 1] ===
+                "=" &&
             parts[i + 2]
         ) {
 
-            var status =
+            const status =
                 parts[i + 2].val;
-
-
-            var condition =
-                createShippingStatusCondition(
-                    status,
-                    req
-                );
 
 
             newParts.push({
 
-                xpr: condition
+                xpr:
+                    createShippingStatusCondition(
+                        status,
+                        req
+                    )
 
             });
 
 
-            // Skip:
-            //
-            // ShippingStatus
-            // =
-            // status
-            //
-            i = i + 2;
+            i =
+                i +
+                2;
 
 
             continue;
         }
 
 
-        // Keep normal filters
         newParts.push(
             part
         );
@@ -778,17 +1442,16 @@ function rewriteFilterParts(
 }
 
 
-
 // =========================================================
 // CREATE SHIPPING STATUS CONDITION
 // =========================================================
+
 function createShippingStatusCondition(
     status,
     req
 ) {
 
-
-    var today =
+    const today =
         new Date();
 
 
@@ -800,31 +1463,35 @@ function createShippingStatusCondition(
     );
 
 
-    var dueSoonDate =
+    const dueSoonDate =
         new Date(
             today
         );
 
 
     dueSoonDate.setDate(
-        dueSoonDate.getDate() + 7
+
+        dueSoonDate.getDate() +
+        7
+
     );
 
 
-    var todayText =
+    const todayText =
         today.toISOString();
 
 
-    var dueSoonText =
+    const dueSoonText =
         dueSoonDate.toISOString();
-
 
 
     // =====================================================
     // SHIPPED
     // =====================================================
+
     if (
-        status === "Shipped"
+        status ===
+        "Shipped"
     ) {
 
         return [
@@ -845,12 +1512,13 @@ function createShippingStatusCondition(
     }
 
 
-
     // =====================================================
     // OVERDUE
     // =====================================================
+
     if (
-        status === "Overdue"
+        status ===
+        "Overdue"
     ) {
 
         return [
@@ -878,19 +1546,21 @@ function createShippingStatusCondition(
             "<",
 
             {
-                val: todayText
+                val:
+                    todayText
             }
 
         ];
     }
 
 
-
     // =====================================================
     // DUE SOON
     // =====================================================
+
     if (
-        status === "Due Soon"
+        status ===
+        "Due Soon"
     ) {
 
         return [
@@ -918,7 +1588,8 @@ function createShippingStatusCondition(
             ">=",
 
             {
-                val: todayText
+                val:
+                    todayText
             },
 
             "and",
@@ -932,19 +1603,21 @@ function createShippingStatusCondition(
             "<=",
 
             {
-                val: dueSoonText
+                val:
+                    dueSoonText
             }
 
         ];
     }
 
 
-
     // =====================================================
     // OPEN
     // =====================================================
+
     if (
-        status === "Open"
+        status ===
+        "Open"
     ) {
 
         return [
@@ -972,36 +1645,38 @@ function createShippingStatusCondition(
             ">",
 
             {
-                val: dueSoonText
+                val:
+                    dueSoonText
             }
 
         ];
     }
 
 
-
     // =====================================================
     // INVALID STATUS
     // =====================================================
+
     req.reject(
+
         400,
+
         "ShippingStatus must be Shipped, Overdue, Due Soon, or Open"
+
     );
 }
-
 
 
 // =========================================================
 // CALCULATE ORDER TOTALS
 // =========================================================
+
 async function calculateOrderTotals(
     orderID,
     northwind
 ) {
 
-
-    // Get all OrderDetails for this Order
-    var items =
+    const items =
         await northwind.run(
 
             SELECT
@@ -1009,49 +1684,47 @@ async function calculateOrderTotals(
                     "Northwind.Order_Details"
                 )
                 .where({
-                    OrderID: orderID
+
+                    OrderID:
+                        orderID
+
                 })
 
         );
 
 
-    var totalQuantity =
+    let totalQuantity =
         0;
 
 
-    var netOrderValue =
+    let netOrderValue =
         0;
 
 
     for (
-        var i = 0;
-        i < items.length;
-        i++
+        const item
+        of items
     ) {
 
-
-        var price =
+        const price =
             Number(
-                items[i].UnitPrice || 0
+                item.UnitPrice ||
+                0
             );
 
 
-        var quantity =
+        const quantity =
             Number(
-                items[i].Quantity || 0
+                item.Quantity ||
+                0
             );
 
 
-        var discount =
+        const discount =
             Number(
-                items[i].Discount || 0
+                item.Discount ||
+                0
             );
-
-
-        var lineTotal =
-            price *
-            quantity *
-            (1 - discount);
 
 
         totalQuantity =
@@ -1061,7 +1734,14 @@ async function calculateOrderTotals(
 
         netOrderValue =
             netOrderValue +
-            lineTotal;
+            (
+                price *
+                quantity *
+                (
+                    1 -
+                    discount
+                )
+            );
     }
 
 
@@ -1073,44 +1753,42 @@ async function calculateOrderTotals(
 
         NetOrderValue:
             Number(
-                netOrderValue.toFixed(2)
+                netOrderValue.toFixed(
+                    2
+                )
             )
+
     };
 }
-
 
 
 // =========================================================
 // ADD FIELD IF MISSING
 // =========================================================
+
 function addFieldIfMissing(
     columns,
     fieldName
 ) {
 
+    const found =
+        columns.some(
 
-    var found =
-        false;
+            function (
+                column
+            ) {
 
+                return (
 
-    for (
-        var i = 0;
-        i < columns.length;
-        i++
-    ) {
+                    column.ref &&
 
-        if (
-            columns[i].ref &&
-            columns[i].ref[0] ===
-                fieldName
-        ) {
+                    column.ref[0] ===
+                        fieldName
 
-            found =
-                true;
+                );
+            }
 
-            break;
-        }
-    }
+        );
 
 
     if (!found) {

@@ -63,17 +63,13 @@ service OrderWorkbenchService {
             // =============================================
             // LOCAL TASK ASSOCIATION
             // =============================================
-            //
-            // Order 10248
-            //      ↓
-            // Tasks with OrderID = 10248
-            //
+
             OrderTasks : Association to many Tasks
                 on OrderTasks.OrderID = $self.OrderID,
 
 
             // =============================================
-            // VIRTUAL FIELDS
+            // VIRTUAL ORDER FIELDS
             // =============================================
 
             virtual ShippingStatus : String(20),
@@ -82,7 +78,35 @@ service OrderWorkbenchService {
 
             virtual NetOrderValue : Decimal(15,2),
 
-            virtual CanMarkForReview : Boolean
+
+            // =============================================
+            // REVIEW INFORMATION
+            // =============================================
+
+            virtual ReviewStatus : String(30),
+
+            virtual ReviewReason : String(500),
+
+            virtual MarkedBy : String(255),
+
+            virtual MarkedAt : Timestamp,
+
+            virtual AnalystComment : String(500),
+
+            virtual ReviewedBy : String(255),
+
+            virtual ReviewedAt : Timestamp,
+
+
+            // =============================================
+            // ACTION AVAILABILITY
+            // =============================================
+
+            virtual CanMarkForReview : Boolean,
+
+            virtual CanCompleteReview : Boolean,
+
+            virtual CanRejectReview : Boolean
 
 
     } actions {
@@ -92,15 +116,74 @@ service OrderWorkbenchService {
         // MARK FOR REVIEW
         // =================================================
         //
-        // Only Coordinator can execute this action.
+        // Coordinator only
         //
         // =================================================
 
         @requires: 'ZNW_ORD_COORD'
         @Core.OperationAvailable: (:in.CanMarkForReview)
+        @Common.SideEffects: {
+            TargetEntities: [
+                'in'
+            ]
+        }
         action markForReview(
 
-            in : $self
+            in : $self,
+
+            @title: 'Review Reason'
+            ReviewReason : String(500)
+
+        ) returns String;
+
+
+        // =================================================
+        // COMPLETE REVIEW
+        // =================================================
+        //
+        // Analyst only
+        //
+        // =================================================
+
+        @requires: 'ZNW_ORD_ANALYST'
+        @Core.OperationAvailable: (:in.CanCompleteReview)
+        @Common.SideEffects: {
+            TargetEntities: [
+                'in'
+            ]
+        }
+        action completeReview(
+
+            in : $self,
+
+            @title: 'Analyst Comment'
+            AnalystComment : String(500)
+
+        ) returns String;
+
+
+        // =================================================
+        // REJECT REVIEW
+        // =================================================
+        //
+        // Analyst only
+        //
+        // =================================================
+
+        @requires: 'ZNW_ORD_ANALYST'
+        @Core.OperationAvailable: (:in.CanRejectReview)
+        @Common.IsActionCritical: true
+        @Common.SideEffects: {
+            TargetEntities: [
+                'in'
+            ]
+        }
+        action rejectReview(
+
+            in : $self,
+
+            @title: 'Rejection Reason'
+            AnalystComment : String(500)
 
         ) returns String;
 
@@ -109,9 +192,7 @@ service OrderWorkbenchService {
         // CREATE TASK
         // =================================================
         //
-        // Only Coordinator can create a Task from an Order.
-        //
-        // After creation, refresh OrderTasks automatically.
+        // Coordinator only
         //
         // =================================================
 
@@ -199,20 +280,6 @@ service OrderWorkbenchService {
     // =====================================================
     // TASKS AUTHORIZATION
     // =====================================================
-    //
-    // DISPLAY:
-    //     READ only
-    //
-    // COORD:
-    //     READ
-    //     CREATE
-    //     UPDATE
-    //     DELETE
-    //
-    // ANALYST:
-    //     READ only
-    //
-    // =====================================================
 
     @restrict: [
 
@@ -261,13 +328,6 @@ service OrderWorkbenchService {
             // =============================================
             // UPDATE TASK
             // =============================================
-            //
-            // Only Coordinator.
-            //
-            // Existing Task values are automatically
-            // populated into the Edit Task dialog.
-            //
-            // =============================================
 
             @requires: 'ZNW_ORD_COORD'
 
@@ -283,54 +343,30 @@ service OrderWorkbenchService {
                 in : $self,
 
 
-                // -----------------------------------------
-                // TITLE
-                // -----------------------------------------
-
                 @title: 'Title'
                 @UI.ParameterDefaultValue: in.Title
                 Title : String(120),
 
-
-                // -----------------------------------------
-                // DESCRIPTION
-                // -----------------------------------------
 
                 @title: 'Description'
                 @UI.ParameterDefaultValue: in.Description
                 Description : String(500),
 
 
-                // -----------------------------------------
-                // STATUS
-                // -----------------------------------------
-
                 @title: 'Status'
                 @UI.ParameterDefaultValue: in.Status
                 Status : String(20),
 
-
-                // -----------------------------------------
-                // PRIORITY
-                // -----------------------------------------
 
                 @title: 'Priority'
                 @UI.ParameterDefaultValue: in.Priority
                 Priority : String(20),
 
 
-                // -----------------------------------------
-                // ASSIGNED TO
-                // -----------------------------------------
-
                 @title: 'Assigned To'
                 @UI.ParameterDefaultValue: in.AssignedTo
                 AssignedTo : String(255),
 
-
-                // -----------------------------------------
-                // DUE DATE
-                // -----------------------------------------
 
                 @title: 'Due Date'
                 @UI.ParameterDefaultValue: in.DueDate
@@ -341,13 +377,6 @@ service OrderWorkbenchService {
 
             // =============================================
             // DELETE TASK
-            // =============================================
-            //
-            // Only Coordinator.
-            //
-            // Critical action causes Fiori to request
-            // confirmation before deleting.
-            //
             // =============================================
 
             @requires: 'ZNW_ORD_COORD'
