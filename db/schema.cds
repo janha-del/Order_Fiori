@@ -24,3 +24,22 @@ entity Tasks {
 
     CompletedAt : Timestamp;
 }
+entity OrderReviews {
+
+    key OrderID : Integer;
+
+    ReviewStatus : String(30) default 'Not Reviewed';
+
+    ReviewReason : String(500);
+
+    MarkedBy : String(255);
+
+    MarkedAt : Timestamp;
+
+    AnalystComment : String(500);
+
+    ReviewedBy : String(255);
+
+    ReviewedAt : Timestamp;
+
+}

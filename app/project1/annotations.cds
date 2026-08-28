@@ -40,6 +40,18 @@ annotate service.Orders with @(
         },
 
         {
+        $Type  : 'UI.DataFieldForAction',
+        Action : 'OrderWorkbenchService.completeReview',
+        Label  : 'Complete Review'
+    },
+
+    {
+        $Type  : 'UI.DataFieldForAction',
+        Action : 'OrderWorkbenchService.rejectReview',
+        Label  : 'Reject Review'
+    },
+
+        {
             $Type  : 'UI.DataFieldForAction',
             Action : 'OrderWorkbenchService.createTask',
             Label  : 'Create Task'
