@@ -64,13 +64,9 @@ service OrderWorkbenchService {
             // LOCAL TASK ASSOCIATION
             // =============================================
             //
-            // Connects:
-            //
             // Order 10248
             //      ↓
-            // Tasks where OrderID = 10248
-            //
-            // Tasks are stored in HANA.
+            // Tasks with OrderID = 10248
             //
             OrderTasks : Association to many Tasks
                 on OrderTasks.OrderID = $self.OrderID,
@@ -95,6 +91,10 @@ service OrderWorkbenchService {
         // =================================================
         // MARK FOR REVIEW
         // =================================================
+        //
+        // Only Coordinator can execute this action.
+        //
+        // =================================================
 
         @requires: 'ZNW_ORD_COORD'
         @Core.OperationAvailable: (:in.CanMarkForReview)
@@ -108,9 +108,20 @@ service OrderWorkbenchService {
         // =================================================
         // CREATE TASK
         // =================================================
+        //
+        // Only Coordinator can create a Task from an Order.
+        //
+        // After creation, refresh OrderTasks automatically.
+        //
+        // =================================================
 
         @requires: 'ZNW_ORD_COORD'
         @Core.OperationAvailable: (:in.CanMarkForReview)
+        @Common.SideEffects: {
+            TargetEntities: [
+                'in/OrderTasks'
+            ]
+        }
         action createTask(
 
             in : $self,
@@ -186,74 +197,177 @@ service OrderWorkbenchService {
 
 
     // =====================================================
+    // TASKS AUTHORIZATION
+    // =====================================================
+    //
+    // DISPLAY:
+    //     READ only
+    //
+    // COORD:
+    //     READ
+    //     CREATE
+    //     UPDATE
+    //     DELETE
+    //
+    // ANALYST:
+    //     READ only
+    //
+    // =====================================================
+
+    @restrict: [
+
+        // -------------------------------------------------
+        // ALL THREE ROLES CAN READ TASKS
+        // -------------------------------------------------
+
+        {
+            grant: 'READ',
+
+            to: [
+                'ZNW_ORD_DISPLAY',
+                'ZNW_ORD_COORD',
+                'ZNW_ORD_ANALYST'
+            ]
+        },
+
+
+        // -------------------------------------------------
+        // ONLY COORDINATOR CAN MODIFY TASKS
+        // -------------------------------------------------
+
+        {
+            grant: [
+                'CREATE',
+                'UPDATE',
+                'DELETE'
+            ],
+
+            to: 'ZNW_ORD_COORD'
+        }
+
+    ]
+
+
+    // =====================================================
     // TASKS
     // =====================================================
-    //
-    // Tasks are stored in our own HANA database.
-    //
-    // They do NOT come from Northwind.
-    //
-    // OrderID links a Task to its Order.
-    //
-    // Example:
-    //
-    // OrderID = 10248
-    //
-    // can have:
-    //
-    // Task 1
-    // Task 2
-    // Task 3
-    //
-    // =====================================================
 
-  entity Tasks
-    as projection on db.Tasks
+    entity Tasks
+        as projection on db.Tasks
 
-    actions {
-
-        // =================================================
-        // UPDATE TASK
-        // =================================================
-
-        @requires: 'ZNW_ORD_COORD'
-        action updateTask(
-
-            in : $self,
-
-            @title: 'Title'
-            Title : String(120),
-
-            @title: 'Description'
-            Description : String(500),
-
-            @title: 'Status'
-            Status : String(20),
-
-            @title: 'Priority'
-            Priority : String(20),
-
-            @title: 'Assigned To'
-            AssignedTo : String(255),
-
-            @title: 'Due Date'
-            DueDate : Date
-
-        ) returns String;
+        actions {
 
 
-        // =================================================
-        // DELETE TASK
-        // =================================================
+            // =============================================
+            // UPDATE TASK
+            // =============================================
+            //
+            // Only Coordinator.
+            //
+            // Existing Task values are automatically
+            // populated into the Edit Task dialog.
+            //
+            // =============================================
 
-        @requires: 'ZNW_ORD_COORD'
-        @Common.IsActionCritical: true
-        action deleteTask(
+            @requires: 'ZNW_ORD_COORD'
 
-            in : $self
+            @Common.SideEffects: {
+                TargetEntities: [
+                    'in',
+                    '/OrderWorkbenchService.EntityContainer/Tasks'
+                ]
+            }
 
-        ) returns String;
+            action updateTask(
 
-    };
+                in : $self,
+
+
+                // -----------------------------------------
+                // TITLE
+                // -----------------------------------------
+
+                @title: 'Title'
+                @UI.ParameterDefaultValue: in.Title
+                Title : String(120),
+
+
+                // -----------------------------------------
+                // DESCRIPTION
+                // -----------------------------------------
+
+                @title: 'Description'
+                @UI.ParameterDefaultValue: in.Description
+                Description : String(500),
+
+
+                // -----------------------------------------
+                // STATUS
+                // -----------------------------------------
+
+                @title: 'Status'
+                @UI.ParameterDefaultValue: in.Status
+                Status : String(20),
+
+
+                // -----------------------------------------
+                // PRIORITY
+                // -----------------------------------------
+
+                @title: 'Priority'
+                @UI.ParameterDefaultValue: in.Priority
+                Priority : String(20),
+
+
+                // -----------------------------------------
+                // ASSIGNED TO
+                // -----------------------------------------
+
+                @title: 'Assigned To'
+                @UI.ParameterDefaultValue: in.AssignedTo
+                AssignedTo : String(255),
+
+
+                // -----------------------------------------
+                // DUE DATE
+                // -----------------------------------------
+
+                @title: 'Due Date'
+                @UI.ParameterDefaultValue: in.DueDate
+                DueDate : Date
+
+            ) returns String;
+
+
+            // =============================================
+            // DELETE TASK
+            // =============================================
+            //
+            // Only Coordinator.
+            //
+            // Critical action causes Fiori to request
+            // confirmation before deleting.
+            //
+            // =============================================
+
+            @requires: 'ZNW_ORD_COORD'
+
+            @Common.IsActionCritical: true
+
+            @Common.SideEffects: {
+                TargetEntities: [
+                    '/OrderWorkbenchService.EntityContainer/Tasks'
+                ]
+            }
+
+            action deleteTask(
+
+                in : $self
+
+            ) returns String;
+
+
+        };
+
 
 }
