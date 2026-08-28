@@ -130,6 +130,26 @@ annotate OrderWorkbenchService.Tasks with @(
             $Type: 'UI.DataField',
             Label: 'Created At',
             Value: CreatedAt
+        },
+
+        /*
+         * =================================================
+         * INLINE TASK ACTIONS
+         * =================================================
+         */
+
+        {
+            $Type  : 'UI.DataFieldForAction',
+            Action : 'OrderWorkbenchService.updateTask',
+            Label  : 'Edit Task',
+            Inline : true
+        },
+
+        {
+            $Type  : 'UI.DataFieldForAction',
+            Action : 'OrderWorkbenchService.deleteTask',
+            Label  : 'Delete Task',
+            Inline : true
         }
 
     ],
@@ -226,20 +246,7 @@ annotate OrderWorkbenchService.Tasks with @(
                 $Type: 'UI.DataField',
                 Label: 'Completed At',
                 Value: CompletedAt
-            },
-    {
-        $Type  : 'UI.DataFieldForAction',
-        Action : 'OrderWorkbenchService.updateTask',
-        Label  : 'Edit Task',
-        Inline : true
-    },
-
-    {
-        $Type  : 'UI.DataFieldForAction',
-        Action : 'OrderWorkbenchService.deleteTask',
-        Label  : 'Delete Task',
-        Inline : true
-    }
+            }
 
         ]
 
